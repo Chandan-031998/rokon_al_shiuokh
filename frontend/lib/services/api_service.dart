@@ -102,8 +102,10 @@ class ApiService {
     final random = Random();
     // TODO: Replace local guest session generation if anonymous auth is added.
     final timestamp = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
-    final entropy =
-        (random.nextDouble() * 0xFFFFFFFF).floor().toRadixString(16).padLeft(8, '0');
+    final entropy = (random.nextDouble() * 0xFFFFFFFF)
+        .floor()
+        .toRadixString(16)
+        .padLeft(8, '0');
     final sessionId = 'guest_${timestamp}_$entropy';
     await resolvedPrefs.setString(_guestSessionKey, sessionId);
     return sessionId;
@@ -118,7 +120,7 @@ class ApiService {
   }
 
   Future<List<CategoryModel>> fetchCategories() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/categories/');
+    final uri = ApiConstants.endpoint('/categories/');
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'categories');
     if (decoded is! List) {
@@ -132,17 +134,30 @@ class ApiService {
   }
 
   Future<List<BranchModel>> fetchBranches() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/branches/');
+    final uri = ApiConstants.endpoint('/branches/');
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'branches');
-    if (decoded is! List) {
-      throw Exception('Invalid branches payload');
+    final rawItems = switch (decoded) {
+      List<dynamic> items => items,
+      Map<String, dynamic> object when object['items'] is List<dynamic> =>
+        object['items'] as List<dynamic>,
+      _ => throw Exception('Invalid branches payload'),
+    };
+
+    final seenIds = <int>{};
+    final branches = <BranchModel>[];
+    for (final item in rawItems.whereType<Map<String, dynamic>>()) {
+      final branch = BranchModel.fromJson(item);
+      if (branch.id <= 0 ||
+          branch.name.isEmpty ||
+          seenIds.contains(branch.id)) {
+        continue;
+      }
+      seenIds.add(branch.id);
+      branches.add(branch);
     }
 
-    return decoded
-        .whereType<Map<String, dynamic>>()
-        .map(BranchModel.fromJson)
-        .toList();
+    return branches;
   }
 
   Future<List<ProductModel>> fetchProducts({
@@ -152,11 +167,12 @@ class ApiService {
     bool featuredOnly = false,
   }) async {
     final uri = featuredOnly
-        ? Uri.parse('${ApiConstants.baseUrl}/products/featured')
-        : Uri.parse('${ApiConstants.baseUrl}/products/').replace(
+        ? ApiConstants.endpoint('/products/featured')
+        : ApiConstants.endpoint(
+            '/products/',
             queryParameters: {
-              if (categoryId != null) 'category_id': '$categoryId',
-              if (branchId != null) 'branch_id': '$branchId',
+              if (categoryId != null) 'category_id': categoryId,
+              if (branchId != null) 'branch_id': branchId,
               if ((query ?? '').trim().isNotEmpty) 'q': query!.trim(),
             },
           );
@@ -178,7 +194,7 @@ class ApiService {
   }
 
   Future<CartModel> fetchCart() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/cart/');
+    final uri = ApiConstants.endpoint('/cart/');
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'cart');
     if (decoded is! Map<String, dynamic>) {
@@ -192,7 +208,7 @@ class ApiService {
     int quantity = 1,
     int? branchId,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/cart/items');
+    final uri = ApiConstants.endpoint('/cart/items');
     final response = await http.post(
       uri,
       headers: await _buildHeaders(json: true),
@@ -214,7 +230,7 @@ class ApiService {
     required int quantity,
     int? branchId,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/cart/items/$itemId');
+    final uri = ApiConstants.endpoint('/cart/items/$itemId');
     final response = await http.patch(
       uri,
       headers: await _buildHeaders(json: true),
@@ -231,7 +247,7 @@ class ApiService {
   }
 
   Future<CartModel> removeCartItem(int itemId) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/cart/items/$itemId');
+    final uri = ApiConstants.endpoint('/cart/items/$itemId');
     final response = await http.delete(uri, headers: await _buildHeaders());
     return CartModel.fromJson(await _decodeObjectResponse(response, 'cart'));
   }
@@ -242,7 +258,7 @@ class ApiService {
     required String password,
     String? phone,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/auth/register');
+    final uri = ApiConstants.endpoint('/auth/register');
     final response = await http.post(
       uri,
       headers: await _buildHeaders(json: true),
@@ -270,7 +286,7 @@ class ApiService {
     required String email,
     required String password,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/auth/login');
+    final uri = ApiConstants.endpoint('/auth/login');
     final response = await http.post(
       uri,
       headers: await _buildHeaders(json: true),
@@ -311,7 +327,7 @@ class ApiService {
   }
 
   Future<UserModel> fetchProfile() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/auth/profile');
+    final uri = ApiConstants.endpoint('/auth/profile');
     final response = await http.get(uri, headers: await _buildHeaders());
     if (response.statusCode == 401) {
       await _clearAuthSession();
@@ -339,7 +355,7 @@ class ApiService {
     required String fullName,
     required String phone,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/auth/profile');
+    final uri = ApiConstants.endpoint('/auth/profile');
     final response = await http.patch(
       uri,
       headers: await _buildHeaders(json: true),
@@ -369,7 +385,7 @@ class ApiService {
     required String notes,
     Map<String, String>? address,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/orders/');
+    final uri = ApiConstants.endpoint('/orders/');
     final response = await http.post(
       uri,
       headers: await _buildHeaders(json: true),
@@ -388,7 +404,7 @@ class ApiService {
   }
 
   Future<List<OrderModel>> fetchOrders() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/orders/');
+    final uri = ApiConstants.endpoint('/orders/');
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeObjectResponse(response, 'orders');
     final items = decoded['items'];
@@ -402,7 +418,7 @@ class ApiService {
   }
 
   Future<OrderModel> fetchOrderDetails(int orderId) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/orders/$orderId');
+    final uri = ApiConstants.endpoint('/orders/$orderId');
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeObjectResponse(response, 'order');
     return OrderModel.fromJson(

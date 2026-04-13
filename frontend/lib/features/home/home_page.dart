@@ -84,11 +84,16 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _refreshHomeContent() async {
     setState(_loadHomeContent);
-    await Future.wait([
-      _categoriesFuture,
-      _featuredProductsFuture,
-      _branchesFuture,
-    ]);
+    try {
+      await Future.wait([
+        _categoriesFuture,
+        _featuredProductsFuture,
+        _branchesFuture,
+      ]);
+    } catch (_) {
+      // Keep the current section-level error states instead of surfacing
+      // refresh failures as uncaught exceptions in Flutter web.
+    }
   }
 
   Future<void> _scrollToSection(HomeSection section) async {
@@ -141,10 +146,11 @@ class _HomePageState extends State<HomePage> {
                       ),
                       Text(
                         l10n.t('brand_tagline'),
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                              color: AppColors.goldMuted,
-                              letterSpacing: 0.6,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.labelMedium?.copyWith(
+                                  color: AppColors.goldMuted,
+                                  letterSpacing: 0.6,
+                                ),
                       ),
                     ],
                   ),
@@ -193,7 +199,8 @@ class _HomePageState extends State<HomePage> {
                     ),
                     KeyedSubtree(
                       key: _categoriesKey,
-                      child: SectionTitle(title: l10n.t('home_main_categories')),
+                      child:
+                          SectionTitle(title: l10n.t('home_main_categories')),
                     ),
                     _CategorySection(
                       categoriesFuture: _categoriesFuture,
@@ -203,7 +210,8 @@ class _HomePageState extends State<HomePage> {
                     ),
                     KeyedSubtree(
                       key: _featuredKey,
-                      child: SectionTitle(title: l10n.t('home_featured_products')),
+                      child:
+                          SectionTitle(title: l10n.t('home_featured_products')),
                     ),
                     _FeaturedSection(
                       featuredProductsFuture: _featuredProductsFuture,
@@ -260,8 +268,8 @@ class _HomePageState extends State<HomePage> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.l10n
-              .t('home_add_to_cart_success', {'name': product.localizedName(context.l10n)})),
+          content: Text(context.l10n.t('home_add_to_cart_success',
+              {'name': product.localizedName(context.l10n)})),
           action: widget.onAddToCart == null
               ? null
               : SnackBarAction(
@@ -619,7 +627,8 @@ class _OffersPlaceholder extends StatelessWidget {
             )
           : Row(
               children: [
-                const Icon(Icons.local_offer_outlined, color: AppColors.creamSoft),
+                const Icon(Icons.local_offer_outlined,
+                    color: AppColors.creamSoft),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
@@ -769,7 +778,10 @@ class _BranchSection extends StatelessWidget {
           );
         }
 
-        final branches = snapshot.data ?? const <BranchModel>[];
+        final branches = <BranchModel>[
+          for (final branch in snapshot.data ?? const <BranchModel>[])
+            if (branch.id > 0 && branch.name.trim().isNotEmpty) branch,
+        ];
         if (branches.isEmpty) {
           return _SectionMessageCard(
             title: l10n.t('home_branches_empty_title'),
@@ -779,13 +791,11 @@ class _BranchSection extends StatelessWidget {
           );
         }
 
-        BranchModel selectedBranch = branches.first;
-        for (final branch in branches) {
-          if (branch.id == selectedBranchId) {
-            selectedBranch = branch;
-            break;
-          }
-        }
+        final branchOptions = <int, BranchModel>{
+          for (final branch in branches) branch.id: branch,
+        };
+        final selectedBranch =
+            branchOptions[selectedBranchId] ?? branches.first;
 
         return Card(
           margin: const EdgeInsets.fromLTRB(20, 4, 20, 8),
@@ -837,8 +847,9 @@ class _BranchSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<int?>(
+                  key: ValueKey<int>(selectedBranch.id),
                   initialValue: selectedBranch.id,
-                  items: branches
+                  items: branchOptions.values
                       .map(
                         (branch) => DropdownMenuItem<int?>(
                           value: branch.id,

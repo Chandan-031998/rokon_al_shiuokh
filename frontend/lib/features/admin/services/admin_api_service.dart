@@ -66,7 +66,8 @@ class AdminApiService {
     return headers;
   }
 
-  Future<Map<String, dynamic>> _decodeObject(http.Response response, String label) async {
+  Future<Map<String, dynamic>> _decodeObject(
+      http.Response response, String label) async {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _apiException(response, 'Failed to load $label');
     }
@@ -77,7 +78,8 @@ class AdminApiService {
     return decoded;
   }
 
-  Future<List<Map<String, dynamic>>> _decodeItems(http.Response response, String label) async {
+  Future<List<Map<String, dynamic>>> _decodeItems(
+      http.Response response, String label) async {
     final decoded = await _decodeObject(response, label);
     final items = decoded['items'];
     if (items is! List) {
@@ -105,7 +107,7 @@ class AdminApiService {
     required String email,
     required String password,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/auth/login');
+    final uri = ApiConstants.endpoint('/admin/auth/login');
     final response = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
@@ -127,7 +129,7 @@ class AdminApiService {
   }
 
   Future<UserModel> fetchMe() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/auth/me');
+    final uri = ApiConstants.endpoint('/admin/auth/me');
     final response = await http.get(uri, headers: await _headers());
     if (response.statusCode == 401 || response.statusCode == 403) {
       await clearSession();
@@ -144,7 +146,7 @@ class AdminApiService {
   }
 
   Future<AdminDashboardSummary> fetchDashboardSummary() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/dashboard/summary');
+    final uri = ApiConstants.endpoint('/admin/dashboard/summary');
     final response = await http.get(uri, headers: await _headers());
     final decoded = await _decodeObject(response, 'dashboard');
     return AdminDashboardSummary.fromJson(
@@ -157,11 +159,12 @@ class AdminApiService {
     int? categoryId,
     int? branchId,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/products').replace(
+    final uri = ApiConstants.endpoint(
+      '/admin/products',
       queryParameters: {
         if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
-        if (categoryId != null) 'category_id': '$categoryId',
-        if (branchId != null) 'branch_id': '$branchId',
+        if (categoryId != null) 'category_id': categoryId,
+        if (branchId != null) 'branch_id': branchId,
       },
     );
     final response = await http.get(uri, headers: await _headers());
@@ -170,7 +173,7 @@ class AdminApiService {
   }
 
   Future<ProductModel> createProduct(Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/products');
+    final uri = ApiConstants.endpoint('/admin/products');
     final response = await http.post(
       uri,
       headers: await _headers(json: true),
@@ -182,8 +185,9 @@ class AdminApiService {
     );
   }
 
-  Future<ProductModel> updateProduct(int productId, Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/products/$productId');
+  Future<ProductModel> updateProduct(
+      int productId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/products/$productId');
     final response = await http.patch(
       uri,
       headers: await _headers(json: true),
@@ -196,7 +200,7 @@ class AdminApiService {
   }
 
   Future<void> deleteProduct(int productId) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/products/$productId');
+    final uri = ApiConstants.endpoint('/admin/products/$productId');
     final response = await http.delete(uri, headers: await _headers());
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _apiException(response, 'Failed to delete product');
@@ -204,14 +208,14 @@ class AdminApiService {
   }
 
   Future<List<CategoryModel>> fetchCategories() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/categories');
+    final uri = ApiConstants.endpoint('/admin/categories');
     final response = await http.get(uri, headers: await _headers());
     final items = await _decodeItems(response, 'categories');
     return items.map(CategoryModel.fromJson).toList();
   }
 
   Future<CategoryModel> createCategory(Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/categories');
+    final uri = ApiConstants.endpoint('/admin/categories');
     final response = await http.post(
       uri,
       headers: await _headers(json: true),
@@ -223,8 +227,9 @@ class AdminApiService {
     );
   }
 
-  Future<CategoryModel> updateCategory(int categoryId, Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/categories/$categoryId');
+  Future<CategoryModel> updateCategory(
+      int categoryId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/categories/$categoryId');
     final response = await http.patch(
       uri,
       headers: await _headers(json: true),
@@ -237,7 +242,7 @@ class AdminApiService {
   }
 
   Future<void> deleteCategory(int categoryId) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/categories/$categoryId');
+    final uri = ApiConstants.endpoint('/admin/categories/$categoryId');
     final response = await http.delete(uri, headers: await _headers());
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _apiException(response, 'Failed to delete category');
@@ -245,14 +250,14 @@ class AdminApiService {
   }
 
   Future<List<BranchModel>> fetchBranches() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/branches');
+    final uri = ApiConstants.endpoint('/admin/branches');
     final response = await http.get(uri, headers: await _headers());
     final items = await _decodeItems(response, 'branches');
     return items.map(BranchModel.fromJson).toList();
   }
 
   Future<BranchModel> createBranch(Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/branches');
+    final uri = ApiConstants.endpoint('/admin/branches');
     final response = await http.post(
       uri,
       headers: await _headers(json: true),
@@ -264,8 +269,9 @@ class AdminApiService {
     );
   }
 
-  Future<BranchModel> updateBranch(int branchId, Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/branches/$branchId');
+  Future<BranchModel> updateBranch(
+      int branchId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/branches/$branchId');
     final response = await http.patch(
       uri,
       headers: await _headers(json: true),
@@ -278,7 +284,7 @@ class AdminApiService {
   }
 
   Future<void> deleteBranch(int branchId) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/branches/$branchId');
+    final uri = ApiConstants.endpoint('/admin/branches/$branchId');
     final response = await http.delete(uri, headers: await _headers());
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _apiException(response, 'Failed to delete branch');
@@ -290,11 +296,12 @@ class AdminApiService {
     String? status,
     int? branchId,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/orders').replace(
+    final uri = ApiConstants.endpoint(
+      '/admin/orders',
       queryParameters: {
         if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
         if ((status ?? '').trim().isNotEmpty) 'status': status!.trim(),
-        if (branchId != null) 'branch_id': '$branchId',
+        if (branchId != null) 'branch_id': branchId,
       },
     );
     final response = await http.get(uri, headers: await _headers());
@@ -303,7 +310,7 @@ class AdminApiService {
   }
 
   Future<OrderModel> fetchOrder(int orderId) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/orders/$orderId');
+    final uri = ApiConstants.endpoint('/admin/orders/$orderId');
     final response = await http.get(uri, headers: await _headers());
     final decoded = await _decodeObject(response, 'order');
     return OrderModel.fromJson(
@@ -311,8 +318,9 @@ class AdminApiService {
     );
   }
 
-  Future<OrderModel> updateOrder(int orderId, Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/orders/$orderId');
+  Future<OrderModel> updateOrder(
+      int orderId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/orders/$orderId');
     final response = await http.patch(
       uri,
       headers: await _headers(json: true),
@@ -325,7 +333,8 @@ class AdminApiService {
   }
 
   Future<List<UserModel>> fetchCustomers({String? search}) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/customers').replace(
+    final uri = ApiConstants.endpoint(
+      '/admin/customers',
       queryParameters: {
         if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
       },
@@ -336,7 +345,7 @@ class AdminApiService {
   }
 
   Future<UserModel> fetchCustomer(int customerId) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/customers/$customerId');
+    final uri = ApiConstants.endpoint('/admin/customers/$customerId');
     final response = await http.get(uri, headers: await _headers());
     final decoded = await _decodeObject(response, 'customer');
     return UserModel.fromJson(
@@ -348,10 +357,11 @@ class AdminApiService {
     String? status,
     int? branchId,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/deliveries').replace(
+    final uri = ApiConstants.endpoint(
+      '/admin/deliveries',
       queryParameters: {
         if ((status ?? '').trim().isNotEmpty) 'status': status!.trim(),
-        if (branchId != null) 'branch_id': '$branchId',
+        if (branchId != null) 'branch_id': branchId,
       },
     );
     final response = await http.get(uri, headers: await _headers());
@@ -359,8 +369,9 @@ class AdminApiService {
     return items.map(OrderModel.fromJson).toList();
   }
 
-  Future<OrderModel> updateDelivery(int orderId, Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/deliveries/$orderId');
+  Future<OrderModel> updateDelivery(
+      int orderId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/deliveries/$orderId');
     final response = await http.patch(
       uri,
       headers: await _headers(json: true),
@@ -373,14 +384,14 @@ class AdminApiService {
   }
 
   Future<List<AdminOfferModel>> fetchOffers() async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/offers');
+    final uri = ApiConstants.endpoint('/admin/offers');
     final response = await http.get(uri, headers: await _headers());
     final items = await _decodeItems(response, 'offers');
     return items.map(AdminOfferModel.fromJson).toList();
   }
 
   Future<AdminOfferModel> createOffer(Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/offers');
+    final uri = ApiConstants.endpoint('/admin/offers');
     final response = await http.post(
       uri,
       headers: await _headers(json: true),
@@ -392,8 +403,9 @@ class AdminApiService {
     );
   }
 
-  Future<AdminOfferModel> updateOffer(int offerId, Map<String, dynamic> payload) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/offers/$offerId');
+  Future<AdminOfferModel> updateOffer(
+      int offerId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/offers/$offerId');
     final response = await http.patch(
       uri,
       headers: await _headers(json: true),
@@ -406,7 +418,7 @@ class AdminApiService {
   }
 
   Future<void> deleteOffer(int offerId) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/offers/$offerId');
+    final uri = ApiConstants.endpoint('/admin/offers/$offerId');
     final response = await http.delete(uri, headers: await _headers());
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _apiException(response, 'Failed to delete offer');
@@ -418,7 +430,7 @@ class AdminApiService {
     required String filename,
     required String contentType,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/uploads/product-image');
+    final uri = ApiConstants.endpoint('/uploads/product-image');
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll(await _headers())
       ..files.add(
@@ -443,7 +455,7 @@ class AdminApiService {
     required Uint8List bytes,
     required String filename,
   }) async {
-    final uri = Uri.parse('${ApiConstants.baseUrl}/admin/import/products');
+    final uri = ApiConstants.endpoint('/admin/import/products');
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll(await _headers())
       ..files.add(

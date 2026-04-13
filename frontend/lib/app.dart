@@ -21,6 +21,7 @@ import 'features/customer/customer_entry.dart';
 import 'localization/app_locale_controller.dart';
 import 'localization/app_localizations.dart';
 import 'services/api_service.dart';
+import 'core/constants/app_colors.dart';
 
 class RokonApp extends StatefulWidget {
   final ApiService apiService;
@@ -45,7 +46,8 @@ class _RokonAppState extends State<RokonApp> {
     super.initState();
     _localeController = AppLocaleController();
     _adminApiService = const AdminApiService();
-    _adminSessionController = AdminSessionController(apiService: _adminApiService);
+    _adminSessionController =
+        AdminSessionController(apiService: _adminApiService);
     _localeController.load();
     _adminSessionController.load();
     _router = GoRouter(
@@ -95,39 +97,48 @@ class _RokonAppState extends State<RokonApp> {
           routes: [
             GoRoute(
               path: '/admin',
-              builder: (context, state) => AdminDashboardPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminDashboardPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/products',
-              builder: (context, state) => AdminProductsPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminProductsPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/categories',
-              builder: (context, state) => AdminCategoriesPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminCategoriesPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/orders',
-              builder: (context, state) => AdminOrdersPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminOrdersPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/customers',
-              builder: (context, state) => AdminCustomersPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminCustomersPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/branches',
-              builder: (context, state) => AdminBranchesPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminBranchesPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/deliveries',
-              builder: (context, state) => AdminDeliveriesPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminDeliveriesPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/offers',
-              builder: (context, state) => AdminOffersPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminOffersPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/import',
-              builder: (context, state) => AdminImportPage(apiService: _adminApiService),
+              builder: (context, state) =>
+                  AdminImportPage(apiService: _adminApiService),
             ),
             GoRoute(
               path: '/admin/settings',
@@ -138,6 +149,7 @@ class _RokonAppState extends State<RokonApp> {
           ],
         ),
       ],
+      errorBuilder: (context, state) => _RouteErrorPage(state: state),
     );
   }
 
@@ -185,5 +197,64 @@ class _RokonAppState extends State<RokonApp> {
     _localeController.dispose();
     _adminSessionController.dispose();
     super.dispose();
+  }
+}
+
+class _RouteErrorPage extends StatelessWidget {
+  final GoRouterState state;
+
+  const _RouteErrorPage({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAdminRoute = state.uri.path.startsWith('/admin');
+    final target = isAdminRoute ? '/admin/login' : '/';
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Unable to open this page.',
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      state.error?.toString() ??
+                          'The requested route is unavailable.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () => context.go(target),
+                      child:
+                          Text(isAdminRoute ? 'Open admin login' : 'Go home'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

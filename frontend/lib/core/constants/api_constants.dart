@@ -12,14 +12,32 @@ class ApiConstants {
       return configuredBaseUrl;
     }
 
-    if (kReleaseMode) {
-      return productionBaseUrl;
-    }
+    return productionBaseUrl;
+  }
 
+  static Uri endpoint(
+    String path, {
+    Map<String, Object?>? queryParameters,
+  }) {
+    final normalizedPath = path.startsWith('/') ? path : '/$path';
+    final resolvedQueryParameters = queryParameters == null
+        ? null
+        : {
+            for (final entry in queryParameters.entries)
+              if (entry.value != null) entry.key: '${entry.value}',
+          };
+
+    return Uri.parse('$baseUrl$normalizedPath').replace(
+      queryParameters: resolvedQueryParameters?.isEmpty ?? true
+          ? null
+          : resolvedQueryParameters,
+    );
+  }
+
+  static String get localDevelopmentHint {
     if (kIsWeb) {
       return webDevelopmentBaseUrl;
     }
-
     return emulatorDevelopmentBaseUrl;
   }
 }
