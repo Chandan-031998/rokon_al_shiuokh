@@ -1,0 +1,70 @@
+import os
+import re
+from pathlib import Path
+from urllib.parse import quote
+
+from dotenv import load_dotenv
+
+_BACKEND_DIR = Path(__file__).resolve().parent
+load_dotenv(_BACKEND_DIR / '.env')
+
+
+def _normalize_database_url(raw_url: str | None):
+    if not raw_url:
+        return raw_url
+
+    if '://' not in raw_url or '@' not in raw_url:
+        return raw_url
+
+    scheme, remainder = raw_url.split('://', 1)
+    credentials, host_part = remainder.rsplit('@', 1)
+    if ':' not in credentials:
+        return raw_url
+
+    username, password = credentials.split(':', 1)
+    encoded_password = quote(password, safe='')
+
+    return f'{scheme}://{username}:{encoded_password}@{host_part}'
+
+
+_LOCAL_DEV_ORIGIN_PATTERNS = [
+    re.compile(r"^http://localhost(?::\d+)?$"),
+    re.compile(r"^http://127\.0\.0\.1(?::\d+)?$"),
+]
+
+
+def _build_cors_origins(raw_value: str | None):
+    configured_values = []
+    if raw_value:
+        configured_values = [
+            value.strip()
+            for value in raw_value.split(",")
+            if value.strip() and value.strip() != "*"
+        ]
+
+    origins = [*configured_values]
+    origins.extend(_LOCAL_DEV_ORIGIN_PATTERNS)
+    return origins
+
+
+class Config:
+    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'jwt-dev-secret')
+    SQLALCHEMY_DATABASE_URI = _normalize_database_url(os.getenv('DATABASE_URL'))
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    JSON_SORT_KEYS = False
+    PROPAGATE_EXCEPTIONS = False
+    CORS_ORIGINS = _build_cors_origins(os.getenv('CORS_ORIGINS'))
+    CORS_ALLOW_HEADERS = [
+        'Content-Type',
+        'Authorization',
+        'X-Guest-Session-ID',
+    ]
+    CORS_METHODS = ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS']
+    SUPABASE_URL = os.getenv('SUPABASE_URL', '')
+    SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
+    SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')
+    SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'products')
+    ADMIN_BOOTSTRAP_EMAIL = os.getenv('ADMIN_BOOTSTRAP_EMAIL', '')
+    ADMIN_BOOTSTRAP_PASSWORD = os.getenv('ADMIN_BOOTSTRAP_PASSWORD', '')
+    ADMIN_BOOTSTRAP_NAME = os.getenv('ADMIN_BOOTSTRAP_NAME', 'Rokon Admin')

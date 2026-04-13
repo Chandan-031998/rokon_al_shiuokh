@@ -1,0 +1,811 @@
+import 'package:flutter/material.dart';
+
+class AppLocalizations {
+  AppLocalizations(this.locale);
+
+  final Locale locale;
+
+  static const supportedLocales = [
+    Locale('en'),
+    Locale('ar'),
+  ];
+
+  static const LocalizationsDelegate<AppLocalizations> delegate =
+      _AppLocalizationsDelegate();
+
+  static AppLocalizations of(BuildContext context) {
+    final instance = Localizations.of<AppLocalizations>(
+      context,
+      AppLocalizations,
+    );
+    assert(instance != null, 'AppLocalizations not found in context');
+    return instance!;
+  }
+
+  bool get isArabic => locale.languageCode == 'ar';
+
+  String t(String key, [Map<String, String> params = const {}]) {
+    final values =
+        _localizedValues[locale.languageCode] ?? _localizedValues['en']!;
+    var text = values[key] ?? _localizedValues['en']![key] ?? key;
+    params.forEach((paramKey, value) {
+      text = text.replaceAll('{$paramKey}', value);
+    });
+    return text;
+  }
+
+  static const Map<String, Map<String, String>> _localizedValues = {
+    'en': {
+      'app_title': 'Rokon Al Shioukh',
+      'brand_tagline': 'Luxury Arabic Collection',
+      'brand_badge': 'ROKON AL SHIOUKH',
+      'currency_label': 'SAR',
+      'nav_home': 'Home',
+      'nav_categories': 'Categories',
+      'nav_featured': 'Featured',
+      'nav_offers': 'Offers',
+      'nav_cart': 'Cart',
+      'nav_orders': 'Orders',
+      'nav_account': 'Account',
+      'common_retry': 'Retry',
+      'common_login': 'Login',
+      'common_register': 'Register',
+      'common_logout': 'Logout',
+      'common_view_cart': 'View Cart',
+      'common_open_cart': 'Open Cart',
+      'common_open_account': 'Open Account',
+      'common_view_orders': 'View Orders',
+      'common_browse_products': 'Browse Products',
+      'common_browse_categories': 'Browse Categories',
+      'common_remove': 'Remove',
+      'splash_subtitle': 'Luxury Arabic products, crafted with heritage.',
+      'home_welcome': 'Welcome to Rokon Al Shioukh',
+      'home_hero_description':
+          'Discover premium Arabic products from our live backend-driven catalog, curated for a refined daily ritual.',
+      'home_live_catalog': 'Live Catalog',
+      'home_slider_eyebrow_signature': 'ROKON SIGNATURE',
+      'home_slider_eyebrow_authentic': 'AUTHENTIC CURATION',
+      'home_slider_eyebrow_essence': 'ARABIC ESSENCE',
+      'home_slider_eyebrow_limited': 'LIMITED SELECTION',
+      'home_slider_title_coffee': 'Premium Arabic Coffee Collection',
+      'home_slider_title_spices': 'Authentic Spices and Herbs',
+      'home_slider_title_attar': 'Luxury Incense and Attar',
+      'home_slider_title_offers': 'Exclusive Seasonal Offers',
+      'home_slider_subtitle_coffee':
+          'Discover authentic blends crafted for a refined daily ritual.',
+      'home_slider_subtitle_spices':
+          'Freshly curated spices and herbs with rich traditional aroma.',
+      'home_slider_subtitle_attar':
+          'Elegant scents and incense for a timeless Arabic experience.',
+      'home_slider_subtitle_offers':
+          'Premium selections and festive bundles for special occasions.',
+      'home_slider_cta_coffee': 'Browse Coffee',
+      'home_slider_cta_spices': 'Explore Spices',
+      'home_slider_cta_attar': 'View Collection',
+      'home_slider_cta_offers': 'Shop Offers',
+      'home_slider_metric_coffee': 'Coffee',
+      'home_slider_metric_spices': 'Spices',
+      'home_slider_metric_attar': 'Attar',
+      'home_slider_metric_offers': 'Offers',
+      'home_main_categories': 'Main Categories',
+      'home_featured_products': 'Featured Products',
+      'home_special_offers': 'Special Offers',
+      'home_branch_selection': 'Branch Selection',
+      'home_delivery_information': 'Delivery Information',
+      'home_add_to_cart_success': '{name} added to cart.',
+      'home_add_to_cart_error': 'Unable to add featured product to cart.',
+      'home_categories_error_title': 'Unable to load categories',
+      'home_categories_error_desc':
+          'The categories feed is unavailable right now. Please retry.',
+      'home_categories_empty_title': 'No categories available',
+      'home_categories_empty_desc':
+          'The backend returned no category data for this section.',
+      'home_featured_error_title': 'Unable to load featured products',
+      'home_featured_error_desc':
+          'The featured products feed is unavailable right now.',
+      'home_featured_empty_title': 'No featured products yet',
+      'home_featured_empty_desc':
+          'Mark products as featured in the backend to populate this section.',
+      'home_offers_placeholder':
+          'Special offers will appear here once promotions are connected to the backend.',
+      'home_branch_city_available': 'Branch information available',
+      'home_change_branch': 'Change',
+      'home_select_branch': 'Select Branch',
+      'home_select_branch_prompt':
+          'Select a branch above to confirm pickup and delivery availability.',
+      'home_selected_branch_delivery':
+          'Delivery and pickup options are available for the selected branch.',
+      'home_estimated_fulfilment':
+          'Estimated fulfilment: same day for local orders, branch pickup available during operating hours.',
+      'home_branches_error_title': 'Unable to load branches',
+      'home_branches_error_desc': 'The branch feed is unavailable right now.',
+      'home_branches_empty_title': 'No branches available',
+      'home_branches_empty_desc':
+          'The backend returned no branch data for this section.',
+      'home_footer_title_brand': 'Rokon Al Shioukh',
+      'home_footer_text_brand':
+          'Premium Arabic-inspired shopping experience backed by live catalog, branch, and order data.',
+      'home_footer_title_branch': 'Mahayil Aseer & Abha',
+      'home_footer_text_branch':
+          'Delivery and pickup remain connected to your selected branch and checkout preference.',
+      'home_footer_title_next': 'Crafted For The Next Phase',
+      'home_footer_text_next':
+          'Real marketing offers, contact links, and policy pages will appear here once the content module is ready.',
+      'categories_eyebrow': 'DISCOVER',
+      'categories_title': 'Categories',
+      'categories_subtitle':
+          'Browse the signature product families and open a dedicated product listing for each collection.',
+      'categories_empty_title': 'No categories found',
+      'categories_empty_desc':
+          'Apply the starter SQL or verify the Flask API to populate the catalog.',
+      'categories_continue_cart_title': 'Continue to cart',
+      'categories_continue_cart_desc':
+          'Move to your basket to review selected items and delivery choices.',
+      'categories_preferences_title': 'Refine your preferences',
+      'categories_preferences_desc':
+          'Open the account tab to manage saved details before checkout.',
+      'categories_view_collection': 'View Collection',
+      'product_pack_size': 'Pack Size',
+      'product_description': 'Description',
+      'product_default_description':
+          'Premium product crafted for the Rokon Al Shioukh catalogue.',
+      'product_branch_selection': 'Branch Selection',
+      'product_quantity': 'Quantity',
+      'product_standard_pack': 'Standard pack',
+      'product_add_to_cart': 'Add to Cart',
+      'product_add_success': 'Added {quantity} x {name} for {branch}.',
+      'product_add_error': 'Unable to add this product to cart right now.',
+      'checkout_title': 'Checkout',
+      'checkout_address_label_default': 'Home',
+      'checkout_fulfilment_option': 'Fulfilment Option',
+      'checkout_delivery_title': 'Delivery',
+      'checkout_delivery_subtitle':
+          'Deliver from the selected branch to your saved delivery details.',
+      'checkout_pickup_title': 'Branch Pickup',
+      'checkout_branch_selection': 'Branch Selection',
+      'checkout_choose_branch': 'Choose fulfilment branch',
+      'checkout_delivery_information': 'Delivery Information',
+      'checkout_address_label': 'Address label',
+      'checkout_city': 'City',
+      'checkout_neighborhood': 'Neighborhood',
+      'checkout_address_line': 'Address line',
+      'checkout_delivery_notes': 'Delivery Notes',
+      'checkout_delivery_notes_hint':
+          'Delivery notes, landmarks, or preferred timing',
+      'checkout_pickup_notes_hint': 'Pickup notes or branch instructions',
+      'validation_required_field': '{field} is required.',
+      'checkout_select_branch_error': 'Please select a branch.',
+      'checkout_summary_title': 'Order Summary',
+      'checkout_subtotal': 'Subtotal',
+      'checkout_delivery_fee': 'Delivery Fee',
+      'checkout_total': 'Total',
+      'checkout_place_order': 'Place Order',
+      'checkout_placing_order': 'Placing Order...',
+      'checkout_qty': 'Qty {quantity}',
+      'checkout_load_error_title': 'Unable to load checkout',
+      'checkout_load_error_desc':
+          'The checkout data could not be loaded. Verify the Flask API and try again.',
+      'checkout_empty_title': 'Cart is empty',
+      'checkout_empty_desc':
+          'Add products to your cart before starting checkout.',
+      'checkout_pickup_branch_note':
+          'Collect your order directly from Mahayil Aseer or Abha branch.',
+      'order_success_title': 'Order Confirmed',
+      'order_success_heading': 'Order Placed Successfully',
+      'order_success_message':
+          'Order {order} has been submitted for {mode}.',
+      'order_success_mode_pickup': 'branch pickup',
+      'order_success_mode_delivery': 'delivery',
+      'order_success_fulfilment': 'Fulfilment',
+      'order_success_fulfilment_pickup': 'Pickup from {branch}',
+      'order_success_fulfilment_delivery': 'Delivery via {branch}',
+      'order_success_total': 'Total',
+      'order_success_delivery_address': 'Delivery Address',
+      'order_success_back': 'Back to Store',
+      'admin_dashboard_title': 'Dashboard',
+      'admin_dashboard_subtitle':
+          'Overview of catalog, orders, delivery progress, and quick operational metrics.',
+      'admin_delivery_status_summary': 'Delivery Status Summary',
+      'admin_quick_actions': 'Quick Actions',
+      'admin_recent_orders': 'Recent Orders',
+      'admin_metric_products': 'Products',
+      'admin_metric_categories': 'Categories',
+      'admin_metric_orders': 'Orders',
+      'admin_metric_pending_orders': 'Pending Orders',
+      'admin_metric_customers': 'Customers',
+      'admin_metric_branches': 'Branches',
+      'admin_quick_add_product': 'Add Product',
+      'admin_quick_bulk_import': 'Bulk Import',
+      'admin_quick_review_orders': 'Review Orders',
+      'admin_quick_manage_branches': 'Manage Branches',
+      'admin_table_order': 'Order',
+      'admin_table_customer': 'Customer',
+      'admin_table_status': 'Status',
+      'admin_table_type': 'Type',
+      'admin_table_total': 'Total',
+      'admin_guest': 'Guest',
+      'admin_data_load_error': 'Unable to load data',
+      'status_cancelled': 'Cancelled',
+      'products_load_error_title': 'Unable to load products',
+      'products_load_error_desc':
+          'Please verify the Flask API is running and the database is seeded.',
+      'products_empty_title': 'No products match these filters',
+      'products_empty_desc':
+          'Try another search term, category, or branch selection.',
+      'products_reset_filters': 'Reset filters',
+      'products_filter_category': 'Category',
+      'products_filter_all_categories': 'All Categories',
+      'products_filter_branch': 'Branch',
+      'products_filter_all_branches': 'All Branches',
+      'products_search_refine_desc':
+          'Search, refine and browse premium items by branch and collection.',
+      'products_add_short': 'Add',
+      'cart_eyebrow': 'BASKET',
+      'cart_title': 'Cart',
+      'cart_subtitle':
+          'Review your selected products, adjust quantities, and continue to checkout when ready.',
+      'cart_load_error_title': 'Unable to load cart',
+      'cart_load_error_desc':
+          'The cart service did not respond. Verify the Flask API and retry.',
+      'cart_empty_title': 'Your cart is empty',
+      'cart_empty_desc':
+          'Browse the live catalog and add products to start checkout.',
+      'cart_track_orders_title': 'Track previous orders',
+      'cart_track_orders_desc':
+          'Open order history to review recent deliveries and reorder later.',
+      'cart_update_error': 'Unable to update cart item.',
+      'cart_remove_success': '{name} removed from cart.',
+      'cart_remove_error': 'Unable to remove cart item.',
+      'cart_items': 'Items',
+      'cart_subtotal': 'Subtotal',
+      'cart_total': 'Total',
+      'cart_continue_checkout': 'Continue to Checkout',
+      'orders_eyebrow': 'FULFILMENT',
+      'orders_title': 'Orders',
+      'orders_subtitle':
+          'Track current fulfilment progress, review item summaries, and open premium order details.',
+      'orders_load_error_title': 'Unable to load orders',
+      'orders_load_error_desc':
+          'The order history could not be loaded. Retry or review account access.',
+      'orders_empty_title': 'No orders yet',
+      'orders_empty_desc':
+          'Place your first order from the cart to see delivery or pickup tracking here.',
+      'orders_account_desc':
+          'Signed-in users will keep their order history attached to their profile.',
+      'orders_reorder': 'Reorder',
+      'orders_summary_fallback': 'Order details available',
+      'orders_selected_branch': 'Selected branch',
+      'orders_detail_title': 'Order Details',
+      'orders_detail_error_title': 'Unable to load order',
+      'orders_detail_error_desc':
+          'The order details could not be loaded right now.',
+      'orders_status_timeline': 'Order Status Timeline',
+      'orders_items': 'Items',
+      'orders_fulfilment_details': 'Fulfilment Details',
+      'orders_mode': 'Mode',
+      'orders_branch': 'Branch',
+      'orders_address': 'Address',
+      'orders_notes': 'Notes',
+      'orders_not_assigned': 'Not assigned',
+      'orders_payment_summary': 'Payment Summary',
+      'orders_delivery_fee': 'Delivery Fee',
+      'orders_qty_each': 'Qty {quantity} · SAR {price} each',
+      'status_pending': 'Pending',
+      'status_confirmed': 'Confirmed',
+      'status_preparing': 'Preparing',
+      'status_out_for_delivery': 'Out for Delivery',
+      'status_ready_for_pickup': 'Ready for Pickup',
+      'status_delivered': 'Delivered',
+      'type_delivery': 'Delivery',
+      'type_pickup': 'Branch Pickup',
+      'account_eyebrow': 'PROFILE',
+      'account_title': 'Account',
+      'account_subtitle':
+          'Manage your profile, saved delivery addresses, branch preferences, and support access.',
+      'account_load_error_title': 'Unable to load account',
+      'account_load_error_desc':
+          'The account service did not respond correctly. Retry or sign in again.',
+      'account_sign_in_title': 'Sign in to your account',
+      'account_sign_in_desc':
+          'Access saved addresses, preferred branch details, and profile-backed ordering.',
+      'account_create_title': 'Create a new account',
+      'account_create_desc':
+          'Register to save delivery details and keep your profile in sync across orders.',
+      'account_continue_shopping_title': 'Continue shopping',
+      'account_continue_shopping_desc':
+          'Guest browsing and cart flows remain available before sign-in.',
+      'account_contact_info': 'Contact Information',
+      'account_name': 'Name',
+      'account_email': 'Email',
+      'account_phone': 'Phone',
+      'account_no_phone': 'No phone number saved',
+      'account_saved_addresses': 'Saved Addresses',
+      'account_no_addresses':
+          'No saved addresses yet. Delivery addresses will appear here after delivery orders.',
+      'account_preferred_branch': 'Preferred Branch',
+      'account_no_branch': 'Not selected yet',
+      'account_no_branch_desc':
+          'Your latest fulfilment branch will appear here after your first order.',
+      'account_branch_city_unavailable': 'Branch city unavailable',
+      'account_options': 'Account Options',
+      'account_language': 'Language',
+      'account_language_desc':
+          'Choose between Arabic and English for the app interface.',
+      'account_support': 'Support & Contact',
+      'account_support_desc':
+          'Placeholder for support contact channels, branch hotline, and customer care.',
+      'account_open_orders_title': 'Open order history',
+      'account_open_orders_desc':
+          'Review your latest delivery and pickup activity from the order tracking module.',
+      'account_logout_title': 'Logout',
+      'account_logout_desc':
+          'Sign out of the current session and return to guest browsing.',
+      'account_profile_ready':
+          'Profile ready for delivery details, support access, and branch-based shopping.',
+      'account_edit_profile': 'Edit Profile',
+      'account_default': 'Default',
+      'account_logged_out': 'You have been logged out.',
+      'account_edit_title': 'Edit Profile',
+      'account_save_changes': 'Save Changes',
+      'account_saving': 'Saving...',
+      'account_profile_update_success': 'Profile updated successfully.',
+      'account_language_sheet_title': 'Choose Language',
+      'account_language_english': 'English',
+      'account_language_arabic': 'العربية',
+      'admin_brand_title': 'Rokon Admin',
+      'admin_brand_subtitle': 'Operations Panel',
+      'admin_topbar_subtitle': 'Rokon Al Shioukh administration',
+      'admin_user_fallback': 'Admin',
+      'admin_nav_dashboard': 'Dashboard',
+      'admin_nav_products': 'Products',
+      'admin_nav_categories': 'Categories',
+      'admin_nav_orders': 'Orders',
+      'admin_nav_customers': 'Customers',
+      'admin_nav_branches': 'Branches',
+      'admin_nav_deliveries': 'Deliveries',
+      'admin_nav_offers': 'Offers',
+      'admin_nav_import': 'Bulk Import',
+      'admin_nav_settings': 'Settings',
+      'admin_login_title': 'Admin Sign In',
+      'admin_login_subtitle':
+          'Use your admin credentials to manage products, orders, offers, and branch operations.',
+      'admin_login_cta': 'Login to Admin',
+      'admin_login_signing_in': 'Signing in...',
+      'admin_login_brand_body':
+          'Operations dashboard for catalog, orders, offers, customers, branches, and delivery flow.',
+      'admin_login_brand_footer':
+          'Production tools built on the same Flutter + Flask + Supabase stack as the customer experience.',
+      'auth_brand_eyebrow': 'PREMIUM ACCESS',
+      'auth_point_curated': 'Curated Arabic catalog with premium presentation.',
+      'auth_point_delivery': 'Faster checkout for delivery and branch pickup.',
+      'auth_point_branches':
+          'Profile-linked branch preferences and order history.',
+      'auth_brand_footer':
+          'TODO: Add support channels, loyalty benefits, and saved payment methods when those modules are ready.',
+      'login_title': 'Welcome Back',
+      'login_subtitle':
+          'Sign in to your Rokon Al Shioukh account to manage orders, profile details, and checkout faster.',
+      'login_need_account': 'Need an account?',
+      'field_email': 'Email Address',
+      'field_email_hint': 'name@example.com',
+      'field_password': 'Password',
+      'field_password_hint': 'Enter your password',
+      'validation_email_required': 'Email is required.',
+      'validation_email_invalid': 'Enter a valid email address.',
+      'validation_password_required': 'Password is required.',
+      'login_signing_in': 'Signing In...',
+      'register_title': 'Create Your Account',
+      'register_subtitle':
+          'Register for premium ordering, saved profile details, and a smoother checkout flow.',
+      'field_full_name': 'Full Name',
+      'field_full_name_hint': 'Your full name',
+      'field_phone': 'Phone Number',
+      'field_optional': 'Optional',
+      'field_password_min_hint': 'At least 6 characters',
+      'field_confirm_password': 'Confirm Password',
+      'field_confirm_password_hint': 'Repeat your password',
+      'validation_full_name_required': 'Full name is required.',
+      'validation_phone_invalid': 'Enter a valid phone number.',
+      'validation_password_short': 'Password must be at least 6 characters.',
+      'validation_password_mismatch': 'Passwords do not match.',
+      'register_creating': 'Creating Account...',
+      'login_cta': 'Login',
+      'register_cta': 'Register',
+      'register_have_account': 'Already have an account?',
+    },
+    'ar': {
+      'app_title': 'ركن الشيوخ',
+      'brand_tagline': 'تشكيلة عربية فاخرة',
+      'brand_badge': 'ركن الشيوخ',
+      'currency_label': 'ر.س',
+      'nav_home': 'الرئيسية',
+      'nav_categories': 'الفئات',
+      'nav_featured': 'المميزة',
+      'nav_offers': 'العروض',
+      'nav_cart': 'السلة',
+      'nav_orders': 'الطلبات',
+      'nav_account': 'الحساب',
+      'common_retry': 'إعادة المحاولة',
+      'common_login': 'تسجيل الدخول',
+      'common_register': 'إنشاء حساب',
+      'common_logout': 'تسجيل الخروج',
+      'common_view_cart': 'عرض السلة',
+      'common_open_cart': 'فتح السلة',
+      'common_open_account': 'فتح الحساب',
+      'common_view_orders': 'عرض الطلبات',
+      'common_browse_products': 'تصفح المنتجات',
+      'common_browse_categories': 'تصفح الفئات',
+      'common_remove': 'إزالة',
+      'splash_subtitle': 'منتجات عربية فاخرة بروح تراثية أصيلة.',
+      'home_welcome': 'مرحبًا بكم في ركن الشيوخ',
+      'home_hero_description':
+          'اكتشفوا منتجات عربية فاخرة من كتالوجنا المرتبط مباشرة بالخادم، والمصمم لتجربة يومية راقية.',
+      'home_live_catalog': 'كتالوج مباشر',
+      'home_slider_eyebrow_signature': 'توقيع ركن',
+      'home_slider_eyebrow_authentic': 'تشكيلة أصيلة',
+      'home_slider_eyebrow_essence': 'جوهر عربي',
+      'home_slider_eyebrow_limited': 'تشكيلة محدودة',
+      'home_slider_title_coffee': 'مجموعة القهوة العربية الفاخرة',
+      'home_slider_title_spices': 'توابل وأعشاب أصيلة',
+      'home_slider_title_attar': 'بخور وعطور فاخرة',
+      'home_slider_title_offers': 'عروض موسمية حصرية',
+      'home_slider_subtitle_coffee':
+          'اكتشف خلطات أصيلة صُممت لطقس يومي راقٍ.',
+      'home_slider_subtitle_spices':
+          'توابل وأعشاب مختارة بعناية بعبق تقليدي غني.',
+      'home_slider_subtitle_attar':
+          'عطور وبخور أنيقة لتجربة عربية خالدة.',
+      'home_slider_subtitle_offers':
+          'تشكيلات فاخرة وباقات موسمية للمناسبات الخاصة.',
+      'home_slider_cta_coffee': 'تصفح القهوة',
+      'home_slider_cta_spices': 'استكشف التوابل',
+      'home_slider_cta_attar': 'عرض المجموعة',
+      'home_slider_cta_offers': 'تسوق العروض',
+      'home_slider_metric_coffee': 'قهوة',
+      'home_slider_metric_spices': 'توابل',
+      'home_slider_metric_attar': 'عطور',
+      'home_slider_metric_offers': 'عروض',
+      'home_main_categories': 'الفئات الرئيسية',
+      'home_featured_products': 'المنتجات المميزة',
+      'home_special_offers': 'العروض الخاصة',
+      'home_branch_selection': 'اختيار الفرع',
+      'home_delivery_information': 'معلومات التوصيل',
+      'home_add_to_cart_success': 'تمت إضافة {name} إلى السلة.',
+      'home_add_to_cart_error': 'تعذر إضافة المنتج المميز إلى السلة.',
+      'home_categories_error_title': 'تعذر تحميل الفئات',
+      'home_categories_error_desc':
+          'خدمة الفئات غير متاحة حاليًا. يرجى إعادة المحاولة.',
+      'home_categories_empty_title': 'لا توجد فئات متاحة',
+      'home_categories_empty_desc':
+          'لم يُرجع الخادم أي بيانات فئات لهذا القسم.',
+      'home_featured_error_title': 'تعذر تحميل المنتجات المميزة',
+      'home_featured_error_desc': 'خدمة المنتجات المميزة غير متاحة حاليًا.',
+      'home_featured_empty_title': 'لا توجد منتجات مميزة بعد',
+      'home_featured_empty_desc':
+          'قم بتمييز المنتجات في الخلفية لعرضها في هذا القسم.',
+      'home_offers_placeholder':
+          'ستظهر العروض الخاصة هنا عند ربط العروض الترويجية بالخادم.',
+      'home_branch_city_available': 'معلومات الفرع متاحة',
+      'home_change_branch': 'تغيير',
+      'home_select_branch': 'اختر الفرع',
+      'home_select_branch_prompt':
+          'اختر فرعًا أعلاه لتأكيد توفر الاستلام والتوصيل.',
+      'home_selected_branch_delivery':
+          'خيارات التوصيل والاستلام متاحة للفرع المحدد.',
+      'home_estimated_fulfilment':
+          'المدة المتوقعة للتجهيز: في نفس اليوم للطلبات المحلية، مع توفر الاستلام من الفرع خلال ساعات العمل.',
+      'home_branches_error_title': 'تعذر تحميل الفروع',
+      'home_branches_error_desc': 'خدمة الفروع غير متاحة حاليًا.',
+      'home_branches_empty_title': 'لا توجد فروع متاحة',
+      'home_branches_empty_desc': 'لم يُرجع الخادم أي بيانات فروع لهذا القسم.',
+      'home_footer_title_brand': 'ركن الشيوخ',
+      'home_footer_text_brand':
+          'تجربة تسوق عربية فاخرة مدعومة ببيانات مباشرة للكتالوج والفروع والطلبات.',
+      'home_footer_title_branch': 'محايل عسير وأبها',
+      'home_footer_text_branch':
+          'يبقى التوصيل والاستلام مرتبطين بالفرع الذي اخترته وخيار إتمام الطلب.',
+      'home_footer_title_next': 'مصمم للمرحلة القادمة',
+      'home_footer_text_next':
+          'ستظهر هنا العروض التسويقية وروابط التواصل وصفحات السياسات عند جاهزية وحدة المحتوى.',
+      'categories_eyebrow': 'اكتشف',
+      'categories_title': 'الفئات',
+      'categories_subtitle':
+          'تصفح مجموعات المنتجات المميزة وافتح صفحة عرض مخصصة لكل فئة.',
+      'categories_empty_title': 'لا توجد فئات',
+      'categories_empty_desc':
+          'قم بتطبيق ملف SQL الأساسي أو تحقق من واجهة Flask لتعبئة الكتالوج.',
+      'categories_continue_cart_title': 'المتابعة إلى السلة',
+      'categories_continue_cart_desc':
+          'انتقل إلى سلتك لمراجعة العناصر المختارة وخيارات التوصيل.',
+      'categories_preferences_title': 'تخصيص تفضيلاتك',
+      'categories_preferences_desc':
+          'افتح تبويب الحساب لإدارة البيانات المحفوظة قبل إتمام الشراء.',
+      'categories_view_collection': 'عرض المجموعة',
+      'product_pack_size': 'حجم العبوة',
+      'product_description': 'الوصف',
+      'product_default_description': 'منتج فاخر من تشكيلة ركن الشيوخ.',
+      'product_branch_selection': 'اختيار الفرع',
+      'product_quantity': 'الكمية',
+      'product_standard_pack': 'عبوة قياسية',
+      'product_add_to_cart': 'أضف إلى السلة',
+      'product_add_success': 'تمت إضافة {quantity} × {name} لفرع {branch}.',
+      'product_add_error': 'تعذر إضافة هذا المنتج إلى السلة حاليًا.',
+      'checkout_title': 'إتمام الطلب',
+      'checkout_address_label_default': 'المنزل',
+      'checkout_fulfilment_option': 'خيار التنفيذ',
+      'checkout_delivery_title': 'التوصيل',
+      'checkout_delivery_subtitle':
+          'سيتم التوصيل من الفرع المحدد إلى تفاصيل العنوان المحفوظة لديك.',
+      'checkout_pickup_title': 'الاستلام من الفرع',
+      'checkout_branch_selection': 'اختيار الفرع',
+      'checkout_choose_branch': 'اختر فرع التنفيذ',
+      'checkout_delivery_information': 'معلومات التوصيل',
+      'checkout_address_label': 'اسم العنوان',
+      'checkout_city': 'المدينة',
+      'checkout_neighborhood': 'الحي',
+      'checkout_address_line': 'العنوان التفصيلي',
+      'checkout_delivery_notes': 'ملاحظات التوصيل',
+      'checkout_delivery_notes_hint':
+          'ملاحظات التوصيل أو المعالم أو الوقت المفضل',
+      'checkout_pickup_notes_hint': 'ملاحظات الاستلام أو تعليمات الفرع',
+      'validation_required_field': 'حقل {field} مطلوب.',
+      'checkout_select_branch_error': 'يرجى اختيار فرع.',
+      'checkout_summary_title': 'ملخص الطلب',
+      'checkout_subtotal': 'المجموع الفرعي',
+      'checkout_delivery_fee': 'رسوم التوصيل',
+      'checkout_total': 'الإجمالي',
+      'checkout_place_order': 'تأكيد الطلب',
+      'checkout_placing_order': 'جارٍ تنفيذ الطلب...',
+      'checkout_qty': 'الكمية {quantity}',
+      'checkout_load_error_title': 'تعذر تحميل صفحة الدفع',
+      'checkout_load_error_desc':
+          'تعذر تحميل بيانات إتمام الطلب. تأكد من تشغيل واجهة Flask ثم أعد المحاولة.',
+      'checkout_empty_title': 'السلة فارغة',
+      'checkout_empty_desc':
+          'أضف منتجات إلى السلة قبل بدء إتمام الطلب.',
+      'checkout_pickup_branch_note':
+          'استلم طلبك مباشرة من فرع محايل عسير أو أبها.',
+      'order_success_title': 'تأكيد الطلب',
+      'order_success_heading': 'تم إرسال الطلب بنجاح',
+      'order_success_message': 'تم إرسال الطلب {order} لخدمة {mode}.',
+      'order_success_mode_pickup': 'الاستلام من الفرع',
+      'order_success_mode_delivery': 'التوصيل',
+      'order_success_fulfilment': 'التنفيذ',
+      'order_success_fulfilment_pickup': 'الاستلام من {branch}',
+      'order_success_fulfilment_delivery': 'التوصيل عبر {branch}',
+      'order_success_total': 'الإجمالي',
+      'order_success_delivery_address': 'عنوان التوصيل',
+      'order_success_back': 'العودة إلى المتجر',
+      'admin_dashboard_title': 'لوحة التحكم',
+      'admin_dashboard_subtitle':
+          'نظرة عامة على الكتالوج والطلبات وحالة التوصيل والمؤشرات التشغيلية السريعة.',
+      'admin_delivery_status_summary': 'ملخص حالات التوصيل',
+      'admin_quick_actions': 'إجراءات سريعة',
+      'admin_recent_orders': 'أحدث الطلبات',
+      'admin_metric_products': 'المنتجات',
+      'admin_metric_categories': 'الفئات',
+      'admin_metric_orders': 'الطلبات',
+      'admin_metric_pending_orders': 'الطلبات المعلقة',
+      'admin_metric_customers': 'العملاء',
+      'admin_metric_branches': 'الفروع',
+      'admin_quick_add_product': 'إضافة منتج',
+      'admin_quick_bulk_import': 'استيراد جماعي',
+      'admin_quick_review_orders': 'مراجعة الطلبات',
+      'admin_quick_manage_branches': 'إدارة الفروع',
+      'admin_table_order': 'الطلب',
+      'admin_table_customer': 'العميل',
+      'admin_table_status': 'الحالة',
+      'admin_table_type': 'النوع',
+      'admin_table_total': 'الإجمالي',
+      'admin_guest': 'ضيف',
+      'admin_data_load_error': 'تعذر تحميل البيانات',
+      'status_cancelled': 'ملغي',
+      'products_load_error_title': 'تعذر تحميل المنتجات',
+      'products_load_error_desc':
+          'يرجى التأكد من تشغيل واجهة Flask وأن قاعدة البيانات تحتوي على البيانات الأساسية.',
+      'products_empty_title': 'لا توجد منتجات تطابق هذه الفلاتر',
+      'products_empty_desc':
+          'جرّب كلمة بحث أو فئة أو فرعًا مختلفًا.',
+      'products_reset_filters': 'إعادة ضبط الفلاتر',
+      'products_filter_category': 'الفئة',
+      'products_filter_all_categories': 'كل الفئات',
+      'products_filter_branch': 'الفرع',
+      'products_filter_all_branches': 'كل الفروع',
+      'products_search_refine_desc':
+          'ابحث وصَفِّ وتصفح المنتجات الفاخرة حسب الفرع والمجموعة.',
+      'products_add_short': 'إضافة',
+      'cart_eyebrow': 'السلة',
+      'cart_title': 'السلة',
+      'cart_subtitle':
+          'راجع المنتجات المختارة، وعدّل الكميات، ثم تابع إلى إتمام الطلب.',
+      'cart_load_error_title': 'تعذر تحميل السلة',
+      'cart_load_error_desc':
+          'خدمة السلة لم تستجب. تحقق من واجهة Flask ثم أعد المحاولة.',
+      'cart_empty_title': 'سلتك فارغة',
+      'cart_empty_desc':
+          'تصفح الكتالوج المباشر وأضف المنتجات لبدء عملية الشراء.',
+      'cart_track_orders_title': 'متابعة الطلبات السابقة',
+      'cart_track_orders_desc':
+          'افتح سجل الطلبات لمراجعة الشحنات السابقة وإعادة الطلب لاحقًا.',
+      'cart_update_error': 'تعذر تحديث عنصر السلة.',
+      'cart_remove_success': 'تمت إزالة {name} من السلة.',
+      'cart_remove_error': 'تعذر إزالة عنصر السلة.',
+      'cart_items': 'العناصر',
+      'cart_subtotal': 'المجموع الفرعي',
+      'cart_total': 'الإجمالي',
+      'cart_continue_checkout': 'المتابعة إلى الدفع',
+      'orders_eyebrow': 'التجهيز',
+      'orders_title': 'الطلبات',
+      'orders_subtitle':
+          'تابع حالة تجهيز الطلبات، وراجع العناصر، وافتح تفاصيل الطلب بأسلوب واضح.',
+      'orders_load_error_title': 'تعذر تحميل الطلبات',
+      'orders_load_error_desc':
+          'تعذر تحميل سجل الطلبات. أعد المحاولة أو تحقق من الوصول إلى الحساب.',
+      'orders_empty_title': 'لا توجد طلبات بعد',
+      'orders_empty_desc':
+          'قم بإتمام أول طلب من السلة لتظهر حالات التوصيل أو الاستلام هنا.',
+      'orders_account_desc':
+          'سيحتفظ المستخدمون المسجلون بتاريخ طلباتهم ضمن الحساب.',
+      'orders_reorder': 'إعادة الطلب',
+      'orders_summary_fallback': 'تفاصيل الطلب متاحة',
+      'orders_selected_branch': 'الفرع المحدد',
+      'orders_detail_title': 'تفاصيل الطلب',
+      'orders_detail_error_title': 'تعذر تحميل الطلب',
+      'orders_detail_error_desc': 'تعذر تحميل تفاصيل الطلب حاليًا.',
+      'orders_status_timeline': 'خط زمني لحالة الطلب',
+      'orders_items': 'العناصر',
+      'orders_fulfilment_details': 'تفاصيل التنفيذ',
+      'orders_mode': 'الطريقة',
+      'orders_branch': 'الفرع',
+      'orders_address': 'العنوان',
+      'orders_notes': 'ملاحظات',
+      'orders_not_assigned': 'غير محدد',
+      'orders_payment_summary': 'ملخص الدفع',
+      'orders_delivery_fee': 'رسوم التوصيل',
+      'orders_qty_each': 'الكمية {quantity} · {price} ر.س للقطعة',
+      'status_pending': 'قيد الانتظار',
+      'status_confirmed': 'تم التأكيد',
+      'status_preparing': 'جارٍ التحضير',
+      'status_out_for_delivery': 'خرج للتوصيل',
+      'status_ready_for_pickup': 'جاهز للاستلام',
+      'status_delivered': 'تم التسليم',
+      'type_delivery': 'توصيل',
+      'type_pickup': 'استلام من الفرع',
+      'account_eyebrow': 'الملف',
+      'account_title': 'الحساب',
+      'account_subtitle':
+          'أدر ملفك الشخصي، وعناوينك المحفوظة، وتفضيلات الفرع، وخيارات الدعم.',
+      'account_load_error_title': 'تعذر تحميل الحساب',
+      'account_load_error_desc':
+          'خدمة الحساب لم تستجب بالشكل الصحيح. أعد المحاولة أو سجّل الدخول مجددًا.',
+      'account_sign_in_title': 'سجّل الدخول إلى حسابك',
+      'account_sign_in_desc':
+          'الوصول إلى العناوين المحفوظة وتفاصيل الفرع المفضل والطلبات المرتبطة بالحساب.',
+      'account_create_title': 'إنشاء حساب جديد',
+      'account_create_desc':
+          'أنشئ حسابًا لحفظ تفاصيل التوصيل ومزامنة ملفك الشخصي مع الطلبات.',
+      'account_continue_shopping_title': 'متابعة التسوق',
+      'account_continue_shopping_desc':
+          'لا يزال بإمكانك التصفح واستخدام السلة كضيف قبل تسجيل الدخول.',
+      'account_contact_info': 'معلومات التواصل',
+      'account_name': 'الاسم',
+      'account_email': 'البريد الإلكتروني',
+      'account_phone': 'الهاتف',
+      'account_no_phone': 'لا يوجد رقم هاتف محفوظ',
+      'account_saved_addresses': 'العناوين المحفوظة',
+      'account_no_addresses':
+          'لا توجد عناوين محفوظة بعد. ستظهر عناوين التوصيل هنا بعد طلبات التوصيل.',
+      'account_preferred_branch': 'الفرع المفضل',
+      'account_no_branch': 'غير محدد بعد',
+      'account_no_branch_desc':
+          'سيظهر آخر فرع تم التنفيذ منه هنا بعد أول طلب لك.',
+      'account_branch_city_unavailable': 'مدينة الفرع غير متاحة',
+      'account_options': 'خيارات الحساب',
+      'account_language': 'اللغة',
+      'account_language_desc': 'اختر بين العربية والإنجليزية لواجهة التطبيق.',
+      'account_support': 'الدعم والتواصل',
+      'account_support_desc':
+          'عنصر مؤقت لقنوات الدعم وأرقام الفروع وخدمة العملاء.',
+      'account_open_orders_title': 'فتح سجل الطلبات',
+      'account_open_orders_desc':
+          'راجع آخر نشاطات التوصيل والاستلام من وحدة تتبع الطلبات.',
+      'account_logout_title': 'تسجيل الخروج',
+      'account_logout_desc':
+          'سجّل الخروج من الجلسة الحالية وعد إلى التصفح كضيف.',
+      'account_profile_ready':
+          'الملف الشخصي جاهز لعناوين التوصيل وخيارات الدعم والتسوق حسب الفرع.',
+      'account_edit_profile': 'تعديل الملف الشخصي',
+      'account_default': 'افتراضي',
+      'account_logged_out': 'تم تسجيل الخروج.',
+      'account_edit_title': 'تعديل الملف الشخصي',
+      'account_save_changes': 'حفظ التغييرات',
+      'account_saving': 'جارٍ الحفظ...',
+      'account_profile_update_success': 'تم تحديث الملف الشخصي بنجاح.',
+      'account_language_sheet_title': 'اختر اللغة',
+      'account_language_english': 'English',
+      'account_language_arabic': 'العربية',
+      'admin_brand_title': 'لوحة ركن',
+      'admin_brand_subtitle': 'لوحة العمليات',
+      'admin_topbar_subtitle': 'إدارة ركن الشيوخ',
+      'admin_user_fallback': 'المشرف',
+      'admin_nav_dashboard': 'لوحة التحكم',
+      'admin_nav_products': 'المنتجات',
+      'admin_nav_categories': 'الفئات',
+      'admin_nav_orders': 'الطلبات',
+      'admin_nav_customers': 'العملاء',
+      'admin_nav_branches': 'الفروع',
+      'admin_nav_deliveries': 'التوصيل',
+      'admin_nav_offers': 'العروض',
+      'admin_nav_import': 'الاستيراد الجماعي',
+      'admin_nav_settings': 'الإعدادات',
+      'admin_login_title': 'تسجيل دخول الإدارة',
+      'admin_login_subtitle':
+          'استخدم بيانات اعتماد الإدارة لإدارة المنتجات والطلبات والعروض والفروع.',
+      'admin_login_cta': 'الدخول إلى الإدارة',
+      'admin_login_signing_in': 'جارٍ تسجيل الدخول...',
+      'admin_login_brand_body':
+          'لوحة تشغيل لإدارة الكتالوج والطلبات والعروض والعملاء والفروع ومسار التوصيل.',
+      'admin_login_brand_footer':
+          'أدوات تشغيل مبنية على نفس منظومة Flutter وFlask وSupabase الخاصة بتجربة العميل.',
+      'auth_brand_eyebrow': 'وصول فاخر',
+      'auth_point_curated': 'كتالوج عربي منسق بعرض راقٍ وتجربة تسوق مميزة.',
+      'auth_point_delivery': 'إتمام أسرع للطلبات مع التوصيل أو الاستلام من الفرع.',
+      'auth_point_branches': 'تفضيلات الفروع وسجل الطلبات مرتبطان بالحساب.',
+      'auth_brand_footer':
+          'ملاحظة: ستتم إضافة قنوات الدعم وبرامج الولاء وطرق الدفع المحفوظة عند اكتمال تلك الوحدات.',
+      'login_title': 'مرحبًا بعودتك',
+      'login_subtitle':
+          'سجّل الدخول إلى حساب ركن الشيوخ لإدارة الطلبات والملف الشخصي وإتمام الشراء بسرعة أكبر.',
+      'login_need_account': 'ليس لديك حساب؟',
+      'field_email': 'البريد الإلكتروني',
+      'field_email_hint': 'name@example.com',
+      'field_password': 'كلمة المرور',
+      'field_password_hint': 'أدخل كلمة المرور',
+      'validation_email_required': 'البريد الإلكتروني مطلوب.',
+      'validation_email_invalid': 'أدخل بريدًا إلكترونيًا صحيحًا.',
+      'validation_password_required': 'كلمة المرور مطلوبة.',
+      'login_signing_in': 'جارٍ تسجيل الدخول...',
+      'register_title': 'إنشاء حسابك',
+      'register_subtitle':
+          'أنشئ حسابًا للحصول على تجربة طلب فاخرة وحفظ البيانات الشخصية وتسهيل الدفع.',
+      'field_full_name': 'الاسم الكامل',
+      'field_full_name_hint': 'اسمك الكامل',
+      'field_phone': 'رقم الهاتف',
+      'field_optional': 'اختياري',
+      'field_password_min_hint': '6 أحرف على الأقل',
+      'field_confirm_password': 'تأكيد كلمة المرور',
+      'field_confirm_password_hint': 'أعد كتابة كلمة المرور',
+      'validation_full_name_required': 'الاسم الكامل مطلوب.',
+      'validation_phone_invalid': 'أدخل رقم هاتف صحيحًا.',
+      'validation_password_short': 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.',
+      'validation_password_mismatch': 'كلمتا المرور غير متطابقتين.',
+      'register_creating': 'جارٍ إنشاء الحساب...',
+      'login_cta': 'تسجيل الدخول',
+      'register_cta': 'إنشاء حساب',
+      'register_have_account': 'لديك حساب بالفعل؟',
+    },
+  };
+}
+
+class _AppLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
+  const _AppLocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) => AppLocalizations.supportedLocales.any(
+        (supportedLocale) =>
+            supportedLocale.languageCode == locale.languageCode,
+      );
+
+  @override
+  Future<AppLocalizations> load(Locale locale) async {
+    return AppLocalizations(locale);
+  }
+
+  @override
+  bool shouldReload(_AppLocalizationsDelegate old) => false;
+}
+
+extension AppLocalizationsX on BuildContext {
+  AppLocalizations get l10n => AppLocalizations.of(this);
+}

@@ -1,0 +1,79 @@
+rokon_al_shiuokh_flutter_flask_supabase/
+├── README.md
+├── backend/
+│   ├── .env.example
+│   ├── app.py
+│   ├── config.py
+│   ├── extensions.py
+│   ├── requirements.txt
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── address.py
+│   │   ├── branch.py
+│   │   ├── cart_item.py
+│   │   ├── category.py
+│   │   ├── order.py
+│   │   ├── order_item.py
+│   │   ├── product.py
+│   │   └── user.py
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── auth_routes.py
+│   │   ├── branch_routes.py
+│   │   ├── cart_routes.py
+│   │   ├── category_routes.py
+│   │   ├── order_routes.py
+│   │   ├── product_routes.py
+│   │   └── upload_routes.py
+│   ├── services/
+│   │   └── storage_service.py
+│   └── utils/
+│       └── auth.py
+├── frontend/
+│   ├── .env.example
+│   ├── pubspec.yaml
+│   └── lib/
+│       ├── app.dart
+│       ├── main.dart
+│       ├── core/
+│       │   ├── constants/
+│       │   │   ├── api_constants.dart
+│       │   │   └── app_colors.dart
+│       │   ├── theme/
+│       │   │   └── app_theme.dart
+│       │   └── widgets/
+│       │       ├── product_card.dart
+│       │       └── section_title.dart
+│       ├── features/
+│       │   ├── account/
+│       │   │   └── account_page.dart
+│       │   ├── auth/
+│       │   │   ├── login_page.dart
+│       │   │   └── register_page.dart
+│       │   ├── cart/
+│       │   │   └── cart_page.dart
+│       │   ├── categories/
+│       │   │   └── categories_page.dart
+│       │   ├── checkout/
+│       │   │   └── checkout_page.dart
+│       │   ├── home/
+│       │   │   └── home_page.dart
+│       │   ├── offers/
+│       │   │   └── offers_page.dart
+│       │   ├── orders/
+│       │   │   ├── order_tracking_page.dart
+│       │   │   └── orders_page.dart
+│       │   ├── products/
+│       │   │   ├── product_details_page.dart
+│       │   │   └── product_list_page.dart
+│       │   └── search/
+│       │       └── search_page.dart
+│       ├── models/
+│       │   ├── category_model.dart
+│       │   ├── order_model.dart
+│       │   ├── product_model.dart
+│       │   └── user_model.dart
+│       └── services/
+│           └── api_service.dart
+└── sql/
+    └── rokon_al_shiuokh_schema.sql

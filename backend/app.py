@@ -1,0 +1,161 @@
+from flask import Flask
+from flask_cors import CORS
+from flask_jwt_extended.exceptions import JWTExtendedException
+from sqlalchemy.exc import SQLAlchemyError
+
+from config import Config
+from extensions import db, migrate, jwt
+from models.user import User
+from routes.auth_routes import auth_bp
+from routes.category_routes import category_bp
+from routes.product_routes import product_bp
+from routes.cart_routes import cart_bp
+from routes.order_routes import order_bp
+from routes.branch_routes import branch_bp
+from routes.admin_routes import admin_bp
+from routes.offer_routes import offer_bp
+from routes.upload_routes import upload_bp
+from services.catalog_seed import ensure_starter_catalog_data
+from utils.api import error_response, success_response
+
+
+def create_app():
+    app = Flask(__name__)
+    app.config.from_object(Config)
+
+    CORS(
+        app,
+        resources={r"/api/*": {"origins": app.config["CORS_ORIGINS"]}},
+        supports_credentials=False,
+        allow_headers=app.config["CORS_ALLOW_HEADERS"],
+        methods=app.config["CORS_METHODS"],
+        vary_header=True,
+        automatic_options=True,
+    )
+    db.init_app(app)
+    migrate.init_app(app, db)
+    jwt.init_app(app)
+
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(category_bp, url_prefix='/api/categories')
+    app.register_blueprint(product_bp, url_prefix='/api/products')
+    app.register_blueprint(cart_bp, url_prefix='/api/cart')
+    app.register_blueprint(order_bp, url_prefix='/api/orders')
+    app.register_blueprint(branch_bp, url_prefix='/api/branches')
+    app.register_blueprint(offer_bp, url_prefix='/api/offers')
+    app.register_blueprint(upload_bp, url_prefix='/api/uploads')
+    app.register_blueprint(admin_bp, url_prefix='/api/admin')
+
+    @jwt.unauthorized_loader
+    def handle_missing_jwt(reason):
+        return error_response(
+            'Authentication is required.',
+            status=401,
+            code='auth_required',
+            details=reason,
+        )
+
+    @jwt.invalid_token_loader
+    def handle_invalid_jwt(reason):
+        return error_response(
+            'The session token is invalid.',
+            status=401,
+            code='invalid_token',
+            details=reason,
+        )
+
+    @jwt.expired_token_loader
+    def handle_expired_jwt(_jwt_header, _jwt_payload):
+        return error_response(
+            'Your session has expired. Please sign in again.',
+            status=401,
+            code='token_expired',
+        )
+
+    @jwt.revoked_token_loader
+    def handle_revoked_jwt(_jwt_header, _jwt_payload):
+        return error_response(
+            'The session token has been revoked.',
+            status=401,
+            code='token_revoked',
+        )
+
+    @app.errorhandler(404)
+    def handle_not_found(_error):
+        return error_response('The requested API resource was not found.', status=404)
+
+    @app.errorhandler(405)
+    def handle_method_not_allowed(_error):
+        return error_response('The HTTP method is not allowed for this endpoint.', status=405)
+
+    @app.errorhandler(SQLAlchemyError)
+    def handle_sqlalchemy_error(error):
+        db.session.rollback()
+        app.logger.exception('Unhandled database error: %s', error)
+        return error_response(
+            'A database error occurred while processing the request.',
+            status=500,
+            code='database_error',
+        )
+
+    @app.errorhandler(JWTExtendedException)
+    def handle_jwt_error(error):
+        return error_response(str(error), status=401, code='jwt_error')
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_error(error):
+        app.logger.exception('Unhandled application error: %s', error)
+        return error_response(
+            'An unexpected server error occurred.',
+            status=500,
+            code='internal_server_error',
+        )
+
+    @app.get('/')
+    def index():
+        return success_response(
+            message='Rokon Al Shiuokh API running',
+            stack='Flask + Supabase PostgreSQL',
+        )
+
+    with app.app_context():
+        _bootstrap_admin_user(app)
+        ensure_starter_catalog_data()
+
+    return app
+
+
+def _bootstrap_admin_user(app: Flask):
+    email = (app.config.get('ADMIN_BOOTSTRAP_EMAIL') or '').strip().lower()
+    password = (app.config.get('ADMIN_BOOTSTRAP_PASSWORD') or '').strip()
+    full_name = (app.config.get('ADMIN_BOOTSTRAP_NAME') or 'Rokon Admin').strip()
+    if not email or not password:
+        return
+
+    try:
+        existing_admin = User.query.filter_by(email=email).first()
+        if existing_admin:
+            if existing_admin.role != 'admin':
+                existing_admin.role = 'admin'
+                db.session.commit()
+            return
+
+        user = User(
+            full_name=full_name,
+            email=email,
+            role='admin',
+            is_active=True,
+        )
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        app.logger.info('Bootstrapped admin user: %s', email)
+    except Exception as error:  # pragma: no cover - bootstrap is environment specific
+        db.session.rollback()
+        app.logger.warning('Unable to bootstrap admin user: %s', error)
+
+
+app = create_app()
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
