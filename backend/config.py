@@ -32,6 +32,11 @@ _LOCAL_DEV_ORIGIN_PATTERNS = [
     re.compile(r"^http://127\.0\.0\.1(?::\d+)?$"),
 ]
 
+_PRODUCTION_ORIGIN_PATTERNS = [
+    re.compile(r"^https?://rokonalshiuokh\.com$"),
+    re.compile(r"^https?://www\.rokonalshiuokh\.com$"),
+]
+
 
 def _build_cors_origins(raw_value: str | None):
     configured_values = []
@@ -44,6 +49,7 @@ def _build_cors_origins(raw_value: str | None):
 
     origins = [*configured_values]
     origins.extend(_LOCAL_DEV_ORIGIN_PATTERNS)
+    origins.extend(_PRODUCTION_ORIGIN_PATTERNS)
     return origins
 
 
