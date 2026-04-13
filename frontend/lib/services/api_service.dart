@@ -22,24 +22,50 @@ class ApiService {
   static const _guestHeader = 'X-Guest-Session-ID';
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
 
-  Future<String?> _readAuthToken() {
-    return _secureStorage.read(key: _authTokenKey);
+  Future<String?> _readAuthToken() async {
+    try {
+      return await _secureStorage.read(key: _authTokenKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String?> _readSecureValue(String key) async {
+    try {
+      return await _secureStorage.read(key: key);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeSecureValue(String key, String value) async {
+    try {
+      await _secureStorage.write(key: key, value: value);
+    } catch (_) {
+      // Ignore web secure-storage/platform failures and let the app fall back
+      // to guest-safe UI states.
+    }
+  }
+
+  Future<void> _deleteSecureValue(String key) async {
+    try {
+      await _secureStorage.delete(key: key);
+    } catch (_) {
+      // Ignore storage cleanup failures.
+    }
   }
 
   Future<void> _persistAuthSession({
     required String token,
     required UserModel user,
   }) async {
-    await _secureStorage.write(key: _authTokenKey, value: token);
-    await _secureStorage.write(
-      key: _storedUserKey,
-      value: jsonEncode(user.toJson()),
-    );
+    await _writeSecureValue(_authTokenKey, token);
+    await _writeSecureValue(_storedUserKey, jsonEncode(user.toJson()));
   }
 
   Future<void> _clearAuthSession() async {
-    await _secureStorage.delete(key: _authTokenKey);
-    await _secureStorage.delete(key: _storedUserKey);
+    await _deleteSecureValue(_authTokenKey);
+    await _deleteSecureValue(_storedUserKey);
   }
 
   Future<Map<String, dynamic>> _decodeObjectResponse(
@@ -309,21 +335,30 @@ class ApiService {
   }
 
   Future<UserModel?> getStoredUser() async {
-    final raw = await _secureStorage.read(key: _storedUserKey);
-    if (raw == null || raw.trim().isEmpty) {
-      return null;
-    }
+    try {
+      final raw = await _readSecureValue(_storedUserKey);
+      if (raw == null || raw.trim().isEmpty) {
+        return null;
+      }
 
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map<String, dynamic>) {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+      final user = UserModel.fromJson(decoded);
+      return user.id == 0 ? null : user;
+    } catch (_) {
       return null;
     }
-    return UserModel.fromJson(decoded);
   }
 
   Future<bool> hasAuthSession() async {
-    final token = await _readAuthToken();
-    return token != null && token.trim().isNotEmpty;
+    try {
+      final token = await _readAuthToken();
+      return token != null && token.trim().isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<UserModel> fetchProfile() async {
@@ -340,10 +375,7 @@ class ApiService {
     if (user.id == 0) {
       throw Exception('Invalid profile payload');
     }
-    await _secureStorage.write(
-      key: _storedUserKey,
-      value: jsonEncode(user.toJson()),
-    );
+    await _writeSecureValue(_storedUserKey, jsonEncode(user.toJson()));
     return user;
   }
 
@@ -372,10 +404,7 @@ class ApiService {
     if (user.id == 0) {
       throw Exception('Invalid profile payload');
     }
-    await _secureStorage.write(
-      key: _storedUserKey,
-      value: jsonEncode(user.toJson()),
-    );
+    await _writeSecureValue(_storedUserKey, jsonEncode(user.toJson()));
     return user;
   }
 

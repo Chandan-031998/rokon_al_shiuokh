@@ -67,17 +67,26 @@ class _CheckoutPageState extends State<CheckoutPage> {
     ]);
     final cart = results[0] as CartModel;
     final branches = results[1] as List<BranchModel>;
-    if (_selectedBranchId == null && branches.isNotEmpty) {
-      _selectedBranchId = cart.items.firstOrNull?.branchId ?? branches.first.id;
+    final validBranches = <BranchModel>[
+      for (final branch in branches)
+        if (branch.id > 0 && branch.name.trim().isNotEmpty) branch,
+    ];
+    if (_selectedBranchId == null && validBranches.isNotEmpty) {
+      _selectedBranchId =
+          cart.items.firstOrNull?.branchId ?? validBranches.first.id;
     }
-    return _CheckoutData(cart: cart, branches: branches);
+    return _CheckoutData(cart: cart, branches: validBranches);
   }
 
   Future<void> _retry() async {
     setState(() {
       _checkoutFuture = _loadCheckoutData();
     });
-    await _checkoutFuture;
+    try {
+      await _checkoutFuture;
+    } catch (_) {
+      // FutureBuilder handles the visible error state.
+    }
   }
 
   Future<void> _placeOrder(CartModel cart, List<BranchModel> branches) async {
@@ -154,7 +163,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
             );
           }
 
-          final data = snapshot.data!;
+          final data = snapshot.data;
+          if (data == null) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: _ErrorCard(onRetry: _retry),
+              ),
+            );
+          }
           if (data.cart.isEmpty) {
             return Center(
               child: Padding(
@@ -320,14 +337,16 @@ class _CheckoutForm extends StatelessWidget {
                   children: [
                     TextFormField(
                       controller: labelController,
-                      validator:
-                          _requiredValidator(context, l10n.t('checkout_address_label')),
-                      decoration: _fieldDecoration(l10n.t('checkout_address_label')),
+                      validator: _requiredValidator(
+                          context, l10n.t('checkout_address_label')),
+                      decoration:
+                          _fieldDecoration(l10n.t('checkout_address_label')),
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: cityController,
-                      validator: _requiredValidator(context, l10n.t('checkout_city')),
+                      validator:
+                          _requiredValidator(context, l10n.t('checkout_city')),
                       decoration: _fieldDecoration(l10n.t('checkout_city')),
                     ),
                     const SizedBox(height: 14),
@@ -337,7 +356,8 @@ class _CheckoutForm extends StatelessWidget {
                         context,
                         l10n.t('checkout_neighborhood'),
                       ),
-                      decoration: _fieldDecoration(l10n.t('checkout_neighborhood')),
+                      decoration:
+                          _fieldDecoration(l10n.t('checkout_neighborhood')),
                     ),
                     const SizedBox(height: 14),
                     TextFormField(
@@ -348,7 +368,8 @@ class _CheckoutForm extends StatelessWidget {
                       ),
                       minLines: 3,
                       maxLines: 4,
-                      decoration: _fieldDecoration(l10n.t('checkout_address_line')),
+                      decoration:
+                          _fieldDecoration(l10n.t('checkout_address_line')),
                     ),
                   ],
                 ),
@@ -651,7 +672,8 @@ class _OrderSummaryCard extends StatelessWidget {
           ],
           const Divider(color: AppColors.border),
           const SizedBox(height: 12),
-          _PriceRow(label: context.l10n.t('checkout_subtotal'), value: cart.subtotal),
+          _PriceRow(
+              label: context.l10n.t('checkout_subtotal'), value: cart.subtotal),
           const SizedBox(height: 8),
           _PriceRow(
             label: context.l10n.t('checkout_delivery_fee'),
@@ -703,7 +725,8 @@ class _SummaryLine extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                context.l10n.t('checkout_qty', {'quantity': '${item.quantity}'}),
+                context.l10n
+                    .t('checkout_qty', {'quantity': '${item.quantity}'}),
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ],

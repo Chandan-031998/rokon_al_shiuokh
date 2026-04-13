@@ -55,7 +55,11 @@ class _CartPageState extends State<CartPage> {
     setState(() {
       _cartFuture = widget.apiService.fetchCart();
     });
-    await _cartFuture;
+    try {
+      await _cartFuture;
+    } catch (_) {
+      // FutureBuilder handles the visible error state.
+    }
   }
 
   Future<void> _updateQuantity(CartItemModel item, int quantity) async {

@@ -51,7 +51,11 @@ class _OrdersPageState extends State<OrdersPage> {
     setState(() {
       _ordersFuture = widget.apiService.fetchOrders();
     });
-    await _ordersFuture;
+    try {
+      await _ordersFuture;
+    } catch (_) {
+      // FutureBuilder handles the visible error state.
+    }
   }
 
   @override

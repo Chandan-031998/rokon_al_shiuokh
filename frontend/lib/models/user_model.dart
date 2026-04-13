@@ -19,12 +19,12 @@ class SavedAddressModel {
 
   factory SavedAddressModel.fromJson(Map<String, dynamic> json) {
     return SavedAddressModel(
-      id: (json['id'] as num?)?.toInt() ?? 0,
-      label: (json['label'] as String? ?? '').trim(),
-      city: (json['city'] as String? ?? '').trim(),
-      neighborhood: (json['neighborhood'] as String? ?? '').trim(),
-      addressLine: (json['address_line'] as String? ?? '').trim(),
-      isDefault: json['is_default'] as bool? ?? false,
+      id: UserModel._asInt(json['id']),
+      label: UserModel._asString(json['label']),
+      city: UserModel._asString(json['city']),
+      neighborhood: UserModel._asString(json['neighborhood']),
+      addressLine: UserModel._asString(json['address_line']),
+      isDefault: UserModel._asBool(json['is_default']),
     );
   }
 
@@ -70,26 +70,91 @@ class UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     final rawAddresses = json['addresses'];
     return UserModel(
-      id: (json['id'] as num?)?.toInt() ?? 0,
-      fullName: (json['full_name'] as String? ?? '').trim(),
-      email: (json['email'] as String? ?? '').trim(),
-      phone: (json['phone'] as String?)?.trim(),
-      role: (json['role'] as String? ?? 'customer').trim(),
-      isActive: json['is_active'] as bool? ?? true,
-      createdAt: (json['created_at'] as String?)?.trim(),
-      orderCount: (json['order_count'] as num?)?.toInt() ?? 0,
-      totalSpent: (json['total_spent'] as num?)?.toDouble() ?? 0,
+      id: _asInt(json['id']),
+      fullName: _asString(json['full_name']),
+      email: _asString(json['email']),
+      phone: _asNullableString(json['phone']),
+      role: _asString(json['role']).isEmpty
+          ? 'customer'
+          : _asString(json['role']),
+      isActive: _asBool(json['is_active'], fallback: true),
+      createdAt: _asNullableString(json['created_at']),
+      orderCount: _asInt(json['order_count']),
+      totalSpent: _asDouble(json['total_spent']),
       addresses: rawAddresses is List
           ? rawAddresses
               .whereType<Map<String, dynamic>>()
               .map(SavedAddressModel.fromJson)
+              .where((address) =>
+                  address.id > 0 ||
+                  address.label.isNotEmpty ||
+                  address.addressLine.isNotEmpty)
               .toList()
           : const <SavedAddressModel>[],
       preferredBranch: json['preferred_branch'] is Map<String, dynamic>
-          ? BranchModel.fromJson(
+          ? _safePreferredBranch(
               json['preferred_branch'] as Map<String, dynamic>)
           : null,
     );
+  }
+
+  static BranchModel? _safePreferredBranch(Map<String, dynamic> json) {
+    final branch = BranchModel.fromJson(json);
+    if (branch.id <= 0 || branch.name.isEmpty) {
+      return null;
+    }
+    return branch;
+  }
+
+  static int _asInt(dynamic value) {
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value.trim()) ?? 0;
+    }
+    return 0;
+  }
+
+  static double _asDouble(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value.trim()) ?? 0;
+    }
+    return 0;
+  }
+
+  static String _asString(dynamic value) {
+    if (value == null) {
+      return '';
+    }
+    return value.toString().trim();
+  }
+
+  static String? _asNullableString(dynamic value) {
+    final normalized = _asString(value);
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  static bool _asBool(dynamic value, {bool fallback = false}) {
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+        return true;
+      }
+      if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+        return false;
+      }
+    }
+    return fallback;
   }
 
   Map<String, dynamic> toJson() {

@@ -51,15 +51,15 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<UserModel?> _loadProfile() async {
-    final hasSession = await widget.apiService.hasAuthSession();
-    if (!hasSession) {
-      return widget.apiService.getStoredUser();
-    }
-
     try {
+      final hasSession = await widget.apiService.hasAuthSession();
+      if (!hasSession) {
+        return await widget.apiService.getStoredUser();
+      }
+
       return await widget.apiService.fetchProfile();
     } catch (_) {
-      return widget.apiService.getStoredUser();
+      return await widget.apiService.getStoredUser();
     }
   }
 
@@ -67,7 +67,12 @@ class _AccountPageState extends State<AccountPage> {
     setState(() {
       _profileFuture = _loadProfile();
     });
-    await _profileFuture;
+    try {
+      await _profileFuture;
+    } catch (_) {
+      // Let FutureBuilder render the fallback state without logging an
+      // additional uncaught async error in Flutter web.
+    }
   }
 
   Future<void> _openLogin() async {
@@ -325,9 +330,10 @@ class _ProfileHeader extends StatelessWidget {
     final l10n = context.l10n;
     final initials = user.fullName
         .split(' ')
-        .where((part) => part.trim().isNotEmpty)
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
         .take(2)
-        .map((part) => part.trim()[0].toUpperCase())
+        .map((part) => part[0].toUpperCase())
         .join();
 
     return Container(
@@ -372,7 +378,9 @@ class _ProfileHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user.fullName,
+                  user.fullName.isEmpty
+                      ? l10n.t('account_title')
+                      : user.fullName,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         color: AppColors.white,
                       ),

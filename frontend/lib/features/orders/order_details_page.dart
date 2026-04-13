@@ -32,7 +32,11 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
     setState(() {
       _orderFuture = widget.apiService.fetchOrderDetails(widget.orderId);
     });
-    await _orderFuture;
+    try {
+      await _orderFuture;
+    } catch (_) {
+      // FutureBuilder handles the visible error state.
+    }
   }
 
   @override
@@ -73,7 +77,31 @@ class _OrderDetailsPageState extends State<OrderDetailsPage> {
             );
           }
 
-          final order = snapshot.data!;
+          final order = snapshot.data;
+          if (order == null || order.id == 0) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: _DetailCard(
+                  title: l10n.t('orders_detail_error_title'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.t('orders_detail_error_desc'),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _retry,
+                        child: Text(l10n.t('common_retry')),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
           return Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 980),
