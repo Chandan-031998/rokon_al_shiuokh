@@ -20,6 +20,7 @@ from utils.api import error_response, success_response
 
 
 def create_app():
+    print('Flask app starting...', flush=True)
     app = Flask(__name__)
     app.config.from_object(Config)
 
@@ -113,16 +114,27 @@ def create_app():
 
     @app.get('/')
     def index():
-        return success_response(
-            message='Rokon Al Shiuokh API running',
-            stack='Flask + Supabase PostgreSQL',
-        )
+        return 'App is running'
 
     with app.app_context():
-        _bootstrap_admin_user(app)
-        ensure_starter_catalog_data()
+        _run_startup_tasks(app)
 
     return app
+
+
+def _run_startup_tasks(app: Flask):
+    database_url = (app.config.get('SQLALCHEMY_DATABASE_URI') or '').strip()
+    if not database_url:
+        print('Startup Error: DATABASE_URL is not set. Skipping database bootstrap.', flush=True)
+        return
+
+    try:
+        _bootstrap_admin_user(app)
+        ensure_starter_catalog_data()
+    except Exception as error:  # pragma: no cover - startup is environment specific
+        db.session.rollback()
+        print(f'Startup Error: {error}', flush=True)
+        app.logger.exception('Startup initialization failed: %s', error)
 
 
 def _bootstrap_admin_user(app: Flask):
