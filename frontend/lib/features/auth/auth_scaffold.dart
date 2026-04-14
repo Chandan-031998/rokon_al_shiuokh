@@ -185,75 +185,94 @@ class _AuthBrandPanel extends StatelessWidget {
               ),
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: AppColors.accentLightGold.withValues(alpha: 0.28),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(compact ? 20 : 26),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: AppColors.accentLightGold.withValues(alpha: 0.22),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: AppColors.accentLightGold.withValues(alpha: 0.28),
+                    ),
+                  ),
+                  child: Text(
+                    l10n.t('auth_brand_eyebrow'),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.creamSoft,
+                          letterSpacing: 1.6,
+                          fontWeight: FontWeight.w800,
+                        ),
                   ),
                 ),
-                child: Text(
-                  l10n.t('auth_brand_eyebrow'),
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.creamSoft,
-                        letterSpacing: 1.6,
+                const SizedBox(height: 24),
+                const BrandLogo(
+                  size: 70,
+                  padding: EdgeInsets.all(2),
+                  showShadow: false,
+                  transparentHighlight: true,
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: AppColors.white,
                         fontWeight: FontWeight.w800,
                       ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              const BrandLogo(
-                size: 70,
-                padding: EdgeInsets.all(2),
-                showShadow: false,
-                transparentHighlight: true,
-              ),
-              const SizedBox(height: 22),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.creamSoft,
-                      height: 1.7,
-                    ),
-              ),
-              const SizedBox(height: 28),
-              _BrandPoint(
-                icon: Icons.diamond_outlined,
-                label: l10n.t('auth_point_curated'),
-              ),
-              const SizedBox(height: 14),
-              _BrandPoint(
-                icon: Icons.local_shipping_outlined,
-                label: l10n.t('auth_point_delivery'),
-              ),
-              const SizedBox(height: 14),
-              _BrandPoint(
-                icon: Icons.storefront_outlined,
-                label: l10n.t('auth_point_branches'),
-              ),
-              if (!compact) ...[
-                const Spacer(),
+                const SizedBox(height: 12),
                 Text(
-                  l10n.t('auth_brand_footer'),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.creamSoft.withValues(alpha: 0.86),
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.creamSoft,
+                        height: 1.7,
                       ),
                 ),
+                const SizedBox(height: 28),
+                _BrandPoint(
+                  icon: Icons.diamond_outlined,
+                  label: l10n.t('auth_point_curated'),
+                ),
+                const SizedBox(height: 14),
+                _BrandPoint(
+                  icon: Icons.local_shipping_outlined,
+                  label: l10n.t('auth_point_delivery'),
+                ),
+                const SizedBox(height: 14),
+                _BrandPoint(
+                  icon: Icons.storefront_outlined,
+                  label: l10n.t('auth_point_branches'),
+                ),
+                if (!compact) ...[
+                  const Spacer(),
+                  Text(
+                    l10n.t('auth_brand_footer'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.creamSoft.withValues(alpha: 0.86),
+                        ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -295,7 +314,8 @@ class _AuthFormPanel extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             subtitle,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.7),
+            style:
+                Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.7),
           ),
           const SizedBox(height: 26),
           child,

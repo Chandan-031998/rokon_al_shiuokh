@@ -1,0 +1,13 @@
+RewriteEngine On
+
+# Force HTTPS in production.
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://rokonalshiuokh.com%{REQUEST_URI} [L,R=301]
+
+# Serve existing files and directories directly.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Flutter web SPA fallback for direct routes like /admin and /orders.
+RewriteRule ^ index.html [L]

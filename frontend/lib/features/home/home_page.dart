@@ -83,7 +83,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _refreshHomeContent() async {
-    setState(_loadHomeContent);
+    setState(() {
+      widget.apiService.clearPublicCatalogCache();
+      _categoriesFuture = widget.apiService.fetchCategories(forceRefresh: true);
+      _featuredProductsFuture =
+          widget.apiService.fetchFeaturedProducts(forceRefresh: true);
+      _branchesFuture = widget.apiService.fetchBranches(forceRefresh: true);
+    });
     try {
       await Future.wait([
         _categoriesFuture,

@@ -18,6 +18,7 @@ import 'features/admin/pages/admin_settings_page.dart';
 import 'features/admin/services/admin_api_service.dart';
 import 'features/admin/widgets/admin_shell.dart';
 import 'features/customer/customer_entry.dart';
+import 'features/navigation/app_shell.dart';
 import 'localization/app_locale_controller.dart';
 import 'localization/app_localizations.dart';
 import 'services/api_service.dart';
@@ -74,13 +75,11 @@ class _RokonAppState extends State<RokonApp> {
         return null;
       },
       routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => CustomerEntry(
-            apiService: widget.apiService,
-            localeController: _localeController,
-          ),
-        ),
+        _customerRoute(path: '/', initialTab: AppTab.home),
+        _customerRoute(path: '/categories', initialTab: AppTab.categories),
+        _customerRoute(path: '/cart', initialTab: AppTab.cart),
+        _customerRoute(path: '/orders', initialTab: AppTab.orders),
+        _customerRoute(path: '/account', initialTab: AppTab.account),
         GoRoute(
           path: '/admin/login',
           builder: (context, state) => AdminLoginPage(
@@ -153,10 +152,31 @@ class _RokonAppState extends State<RokonApp> {
     );
   }
 
+  GoRoute _customerRoute({
+    required String path,
+    required AppTab initialTab,
+  }) {
+    return GoRoute(
+      path: path,
+      builder: (context, state) => CustomerEntry(
+        apiService: widget.apiService,
+        localeController: _localeController,
+        initialTab: initialTab,
+      ),
+    );
+  }
+
   String _initialLocation() {
     final uri = Uri.base;
     final path = uri.path.isEmpty ? '/' : uri.path;
-    if (path.startsWith('/admin')) {
+    const customerPaths = <String>{
+      '/',
+      '/categories',
+      '/cart',
+      '/orders',
+      '/account',
+    };
+    if (path.startsWith('/admin') || customerPaths.contains(path)) {
       return path;
     }
     return '/';

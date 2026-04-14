@@ -16,11 +16,22 @@ import '../models/user_model.dart';
 class ApiService {
   const ApiService();
 
+  static const Duration _publicCacheTtl = Duration(minutes: 3);
+
   static const _guestSessionKey = 'guest_session_id';
   static const _authTokenKey = 'auth_token';
   static const _storedUserKey = 'auth_user_json';
   static const _guestHeader = 'X-Guest-Session-ID';
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  static List<CategoryModel>? _cachedCategories;
+  static DateTime? _cachedCategoriesAt;
+  static Future<List<CategoryModel>>? _pendingCategories;
+  static List<BranchModel>? _cachedBranches;
+  static DateTime? _cachedBranchesAt;
+  static Future<List<BranchModel>>? _pendingBranches;
+  static List<ProductModel>? _cachedFeaturedProducts;
+  static DateTime? _cachedFeaturedProductsAt;
+  static Future<List<ProductModel>>? _pendingFeaturedProducts;
 
   Future<String?> _readAuthToken() async {
     try {
@@ -145,7 +156,51 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
-  Future<List<CategoryModel>> fetchCategories() async {
+  bool _isFresh(DateTime? timestamp) {
+    if (timestamp == null) {
+      return false;
+    }
+    return DateTime.now().difference(timestamp) < _publicCacheTtl;
+  }
+
+  void clearPublicCatalogCache() {
+    _cachedCategories = null;
+    _cachedCategoriesAt = null;
+    _pendingCategories = null;
+    _cachedBranches = null;
+    _cachedBranchesAt = null;
+    _pendingBranches = null;
+    _cachedFeaturedProducts = null;
+    _cachedFeaturedProductsAt = null;
+    _pendingFeaturedProducts = null;
+  }
+
+  Future<List<CategoryModel>> fetchCategories(
+      {bool forceRefresh = false}) async {
+    if (!forceRefresh &&
+        _cachedCategories != null &&
+        _isFresh(_cachedCategoriesAt)) {
+      return _cachedCategories!;
+    }
+    if (!forceRefresh && _pendingCategories != null) {
+      return _pendingCategories!;
+    }
+
+    final pending = _fetchCategoriesNetwork();
+    _pendingCategories = pending;
+    try {
+      final categories = List<CategoryModel>.unmodifiable(await pending);
+      _cachedCategories = categories;
+      _cachedCategoriesAt = DateTime.now();
+      return categories;
+    } finally {
+      if (identical(_pendingCategories, pending)) {
+        _pendingCategories = null;
+      }
+    }
+  }
+
+  Future<List<CategoryModel>> _fetchCategoriesNetwork() async {
     final uri = ApiConstants.endpoint('/categories/');
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'categories');
@@ -159,7 +214,31 @@ class ApiService {
         .toList();
   }
 
-  Future<List<BranchModel>> fetchBranches() async {
+  Future<List<BranchModel>> fetchBranches({bool forceRefresh = false}) async {
+    if (!forceRefresh &&
+        _cachedBranches != null &&
+        _isFresh(_cachedBranchesAt)) {
+      return _cachedBranches!;
+    }
+    if (!forceRefresh && _pendingBranches != null) {
+      return _pendingBranches!;
+    }
+
+    final pending = _fetchBranchesNetwork();
+    _pendingBranches = pending;
+    try {
+      final branches = List<BranchModel>.unmodifiable(await pending);
+      _cachedBranches = branches;
+      _cachedBranchesAt = DateTime.now();
+      return branches;
+    } finally {
+      if (identical(_pendingBranches, pending)) {
+        _pendingBranches = null;
+      }
+    }
+  }
+
+  Future<List<BranchModel>> _fetchBranchesNetwork() async {
     final uri = ApiConstants.endpoint('/branches/');
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'branches');
@@ -215,8 +294,29 @@ class ApiService {
         .toList();
   }
 
-  Future<List<ProductModel>> fetchFeaturedProducts() {
-    return fetchProducts(featuredOnly: true);
+  Future<List<ProductModel>> fetchFeaturedProducts(
+      {bool forceRefresh = false}) async {
+    if (!forceRefresh &&
+        _cachedFeaturedProducts != null &&
+        _isFresh(_cachedFeaturedProductsAt)) {
+      return _cachedFeaturedProducts!;
+    }
+    if (!forceRefresh && _pendingFeaturedProducts != null) {
+      return _pendingFeaturedProducts!;
+    }
+
+    final pending = fetchProducts(featuredOnly: true);
+    _pendingFeaturedProducts = pending;
+    try {
+      final products = List<ProductModel>.unmodifiable(await pending);
+      _cachedFeaturedProducts = products;
+      _cachedFeaturedProductsAt = DateTime.now();
+      return products;
+    } finally {
+      if (identical(_pendingFeaturedProducts, pending)) {
+        _pendingFeaturedProducts = null;
+      }
+    }
   }
 
   Future<CartModel> fetchCart() async {

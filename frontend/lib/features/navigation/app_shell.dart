@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/brand_logo.dart';
@@ -14,16 +15,19 @@ import '../home/home_page.dart';
 import '../orders/orders_page.dart';
 
 enum AppTab { home, categories, cart, orders, account }
+
 enum HomeSection { hero, featured, offers }
 
 class AppShell extends StatefulWidget {
   final ApiService apiService;
   final AppLocaleController localeController;
+  final AppTab initialTab;
 
   const AppShell({
     super.key,
     this.apiService = const ApiService(),
     required this.localeController,
+    this.initialTab = AppTab.home,
   });
 
   @override
@@ -31,7 +35,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  AppTab _currentTab = AppTab.home;
+  late AppTab _currentTab;
   HomeSection _homeSection = HomeSection.hero;
   int _homeSectionRequestId = 0;
   Future<UserModel?>? _desktopProfileFuture;
@@ -39,13 +43,27 @@ class _AppShellState extends State<AppShell> {
   @override
   void initState() {
     super.initState();
+    _currentTab = widget.initialTab;
     _desktopProfileFuture = _loadDesktopProfile();
   }
 
+  @override
+  void didUpdateWidget(covariant AppShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTab != widget.initialTab) {
+      _currentTab = widget.initialTab;
+    }
+  }
+
   void _selectTab(AppTab tab) {
+    final targetPath = _pathForTab(tab);
+    final currentPath = GoRouterState.of(context).uri.path;
     setState(() => _currentTab = tab);
     if (tab == AppTab.account) {
       _refreshDesktopProfile();
+    }
+    if (currentPath != targetPath) {
+      context.go(targetPath);
     }
   }
 
@@ -55,6 +73,19 @@ class _AppShellState extends State<AppShell> {
       _homeSection = section;
       _homeSectionRequestId += 1;
     });
+    if (GoRouterState.of(context).uri.path != '/') {
+      context.go('/');
+    }
+  }
+
+  String _pathForTab(AppTab tab) {
+    return switch (tab) {
+      AppTab.home => '/',
+      AppTab.categories => '/categories',
+      AppTab.cart => '/cart',
+      AppTab.orders => '/orders',
+      AppTab.account => '/account',
+    };
   }
 
   Future<UserModel?> _loadDesktopProfile() async {
@@ -169,7 +200,8 @@ class _AppShellState extends State<AppShell> {
               ),
               child: NavigationBar(
                 selectedIndex: AppTab.values.indexOf(_currentTab),
-                onDestinationSelected: (index) => _selectTab(AppTab.values[index]),
+                onDestinationSelected: (index) =>
+                    _selectTab(AppTab.values[index]),
                 destinations: [
                   NavigationDestination(
                     icon: const Icon(Icons.home_outlined),
@@ -596,8 +628,9 @@ class _DesktopNavButton extends StatelessWidget {
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
-        backgroundColor:
-            selected ? AppColors.primaryDark : AppColors.surface.withValues(alpha: 0.72),
+        backgroundColor: selected
+            ? AppColors.primaryDark
+            : AppColors.surface.withValues(alpha: 0.72),
         foregroundColor: selected ? AppColors.white : AppColors.primaryDark,
         padding: EdgeInsets.symmetric(
           horizontal: compact ? 10 : 14,
@@ -689,7 +722,10 @@ class TabScreenTemplate extends StatelessWidget {
                           children: [
                             Text(
                               eyebrow,
-                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(
                                     color: AppColors.goldMuted,
                                     letterSpacing: 1.6,
                                     fontWeight: FontWeight.w700,

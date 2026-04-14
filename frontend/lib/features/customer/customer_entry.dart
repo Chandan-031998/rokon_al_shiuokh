@@ -8,11 +8,13 @@ import '../../localization/app_locale_controller.dart';
 class CustomerEntry extends StatefulWidget {
   final ApiService apiService;
   final AppLocaleController localeController;
+  final AppTab initialTab;
 
   const CustomerEntry({
     super.key,
     required this.apiService,
     required this.localeController,
+    this.initialTab = AppTab.home,
   });
 
   @override
@@ -42,9 +44,10 @@ class _CustomerEntryState extends State<CustomerEntry> {
       child: _showSplash
           ? const SplashScreen()
           : AppShell(
-              key: const ValueKey('app-shell'),
+              key: ValueKey('app-shell-${widget.initialTab.name}'),
               apiService: widget.apiService,
               localeController: widget.localeController,
+              initialTab: widget.initialTab,
             ),
     );
   }
