@@ -28,13 +28,16 @@ def list_categories():
     except SQLAlchemyError:
         return empty_array_response('Categories')
 
-    return api_response([
-        {
-            'id': row.id,
-            'name': row.name,
-            'name_ar': row.name_ar,
-            'image_url': row.image_url,
-            'icon_key': icon_key_for_category(row.name),
-        }
-        for row in rows
-    ])
+    return api_response(
+        [
+            {
+                'id': row.id,
+                'name': row.name,
+                'name_ar': row.name_ar,
+                'image_url': row.image_url,
+                'icon_key': icon_key_for_category(row.name),
+            }
+            for row in rows
+        ],
+        cache_seconds=300,
+    )

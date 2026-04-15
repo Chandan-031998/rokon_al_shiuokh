@@ -40,16 +40,19 @@ def list_branches():
     has_delivery_available = column_exists('branches', 'delivery_available')
     has_delivery_coverage = column_exists('branches', 'delivery_coverage')
 
-    return api_response([
-        {
-            'id': b.id,
-            'name': b.name,
-            'city': b.city,
-            'address': b.address,
-            'phone': b.phone,
-            'pickup_available': b.pickup_available if has_pickup_available else True,
-            'delivery_available': b.delivery_available if has_delivery_available else True,
-            'delivery_coverage': b.delivery_coverage if has_delivery_coverage else None,
-        }
-        for b in rows
-    ])
+    return api_response(
+        [
+            {
+                'id': b.id,
+                'name': b.name,
+                'city': b.city,
+                'address': b.address,
+                'phone': b.phone,
+                'pickup_available': b.pickup_available if has_pickup_available else True,
+                'delivery_available': b.delivery_available if has_delivery_available else True,
+                'delivery_coverage': b.delivery_coverage if has_delivery_coverage else None,
+            }
+            for b in rows
+        ],
+        cache_seconds=300,
+    )

@@ -28,13 +28,17 @@ def _normalize_database_url(raw_url: str | None):
 
 
 _LOCAL_DEV_ORIGIN_PATTERNS = [
-    re.compile(r"^http://localhost(?::\d+)?$"),
-    re.compile(r"^http://127\.0\.0\.1(?::\d+)?$"),
+    r"^https?://localhost(?::\d+)?$",
+    r"^https?://127\.0\.0\.1(?::\d+)?$",
+    r"^https?://0\.0\.0\.0(?::\d+)?$",
+    r"^https?://192\.168\.\d+\.\d+(?::\d+)?$",
+    r"^https?://10\.\d+\.\d+\.\d+(?::\d+)?$",
+    r"^https?://172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+(?::\d+)?$",
 ]
 
 _PRODUCTION_ORIGIN_PATTERNS = [
-    re.compile(r"^https?://rokonalshiuokh\.com$"),
-    re.compile(r"^https?://www\.rokonalshiuokh\.com$"),
+    r"^https?://rokonalshiuokh\.com$",
+    r"^https?://www\.rokonalshiuokh\.com$",
 ]
 
 
@@ -51,6 +55,24 @@ def _build_cors_origins(raw_value: str | None):
     origins.extend(_LOCAL_DEV_ORIGIN_PATTERNS)
     origins.extend(_PRODUCTION_ORIGIN_PATTERNS)
     return origins
+
+
+def is_allowed_cors_origin(origin: str | None, allowed_origins: list[str] | None):
+    if not origin:
+        return False
+
+    for allowed in allowed_origins or []:
+        candidate = (allowed or '').strip()
+        if not candidate:
+            continue
+        if candidate == origin:
+            return True
+        try:
+            if re.match(candidate, origin):
+                return True
+        except re.error:
+            continue
+    return False
 
 
 class Config:

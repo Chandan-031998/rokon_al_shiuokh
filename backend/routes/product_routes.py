@@ -81,7 +81,7 @@ def list_products():
     except SQLAlchemyError:
         return empty_array_response('Products')
 
-    return api_response([_serialize_product(p) for p in rows])
+    return api_response([_serialize_product(p) for p in rows], cache_seconds=120)
 
 
 @product_bp.get('/featured')
@@ -116,4 +116,4 @@ def featured_products():
     except SQLAlchemyError:
         return empty_array_response('Featured products')
 
-    return api_response([_serialize_product(p) for p in rows])
+    return api_response([_serialize_product(p) for p in rows], cache_seconds=120)

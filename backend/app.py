@@ -1,9 +1,9 @@
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from flask_jwt_extended.exceptions import JWTExtendedException
 from sqlalchemy.exc import SQLAlchemyError
 
-from config import Config
+from config import Config, is_allowed_cors_origin
 from extensions import db, migrate, jwt
 from models.user import User
 from routes.auth_routes import auth_bp
@@ -33,6 +33,23 @@ def create_app():
         vary_header=True,
         automatic_options=True,
     )
+
+    @app.after_request
+    def apply_cors_headers(response):
+        origin = request.headers.get('Origin', '').strip()
+        if request.path.startswith('/api/') and is_allowed_cors_origin(
+            origin, app.config.get('CORS_ORIGINS')
+        ):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Vary'] = 'Origin'
+            response.headers['Access-Control-Allow-Headers'] = ', '.join(
+                app.config['CORS_ALLOW_HEADERS']
+            )
+            response.headers['Access-Control-Allow-Methods'] = ', '.join(
+                app.config['CORS_METHODS']
+            )
+            response.headers['Access-Control-Max-Age'] = '600'
+        return response
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
