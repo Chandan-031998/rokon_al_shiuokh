@@ -22,15 +22,21 @@ class CustomerEntry extends StatefulWidget {
 }
 
 class _CustomerEntryState extends State<CustomerEntry> {
-  bool _showSplash = true;
+  static bool _hasShownSplashThisSession = false;
+  late bool _showSplash;
 
   @override
   void initState() {
     super.initState();
+    _showSplash = !_hasShownSplashThisSession;
+    if (!_showSplash) {
+      return;
+    }
     Future<void>.delayed(const Duration(milliseconds: 1800), () {
       if (!mounted) {
         return;
       }
+      _hasShownSplashThisSession = true;
       setState(() => _showSplash = false);
     });
   }
@@ -44,7 +50,6 @@ class _CustomerEntryState extends State<CustomerEntry> {
       child: _showSplash
           ? const SplashScreen()
           : AppShell(
-              key: ValueKey('app-shell-${widget.initialTab.name}'),
               apiService: widget.apiService,
               localeController: widget.localeController,
               initialTab: widget.initialTab,

@@ -6,6 +6,7 @@ import 'core/theme/app_theme.dart';
 import 'features/admin/admin_session_controller.dart';
 import 'features/admin/pages/admin_branches_page.dart';
 import 'features/admin/pages/admin_categories_page.dart';
+import 'features/admin/pages/admin_content_page.dart';
 import 'features/admin/pages/admin_customers_page.dart';
 import 'features/admin/pages/admin_dashboard_page.dart';
 import 'features/admin/pages/admin_deliveries_page.dart';
@@ -14,6 +15,7 @@ import 'features/admin/pages/admin_login_page.dart';
 import 'features/admin/pages/admin_offers_page.dart';
 import 'features/admin/pages/admin_orders_page.dart';
 import 'features/admin/pages/admin_products_page.dart';
+import 'features/admin/pages/admin_reviews_page.dart';
 import 'features/admin/pages/admin_settings_page.dart';
 import 'features/admin/services/admin_api_service.dart';
 import 'features/admin/widgets/admin_shell.dart';
@@ -61,15 +63,28 @@ class _RokonAppState extends State<RokonApp> {
         }
 
         final isLoginRoute = state.uri.path == '/admin/login';
+        final intendedAdminPath = state.uri.path == '/admin/login'
+            ? state.uri.queryParameters['from']
+            : state.uri.path;
         if (!_adminSessionController.isLoaded) {
           return isLoginRoute ? null : '/admin/login';
         }
 
         final isAuthenticated = _adminSessionController.isAuthenticated;
         if (!isAuthenticated && !isLoginRoute) {
-          return '/admin/login';
+          return Uri(
+            path: '/admin/login',
+            queryParameters: {
+              'from': intendedAdminPath,
+            },
+          ).toString();
         }
         if (isAuthenticated && isLoginRoute) {
+          if (intendedAdminPath != null &&
+              intendedAdminPath.startsWith('/admin') &&
+              intendedAdminPath != '/admin/login') {
+            return intendedAdminPath;
+          }
           return '/admin';
         }
         return null;
@@ -135,6 +150,16 @@ class _RokonAppState extends State<RokonApp> {
                   AdminOffersPage(apiService: _adminApiService),
             ),
             GoRoute(
+              path: '/admin/content',
+              builder: (context, state) =>
+                  AdminContentPage(apiService: _adminApiService),
+            ),
+            GoRoute(
+              path: '/admin/reviews',
+              builder: (context, state) =>
+                  AdminReviewsPage(apiService: _adminApiService),
+            ),
+            GoRoute(
               path: '/admin/import',
               builder: (context, state) =>
                   AdminImportPage(apiService: _adminApiService),
@@ -143,6 +168,7 @@ class _RokonAppState extends State<RokonApp> {
               path: '/admin/settings',
               builder: (context, state) => AdminSettingsPage(
                 sessionController: _adminSessionController,
+                apiService: _adminApiService,
               ),
             ),
           ],

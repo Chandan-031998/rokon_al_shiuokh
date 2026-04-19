@@ -8,6 +8,10 @@ import '../../services/api_service.dart';
 import '../auth/login_page.dart';
 import '../auth/register_page.dart';
 import '../navigation/app_shell.dart';
+import 'cms_page_viewer.dart';
+import 'faqs_page.dart';
+import 'support_center_page.dart';
+import 'wishlist_page.dart';
 
 class AccountPage extends StatefulWidget {
   final ApiService apiService;
@@ -146,6 +150,42 @@ class _AccountPageState extends State<AccountPage> {
     );
   }
 
+  Future<void> _openWishlist() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => WishlistPage(apiService: widget.apiService),
+      ),
+    );
+  }
+
+  Future<void> _openSupportCenter() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SupportCenterPage(apiService: widget.apiService),
+      ),
+    );
+  }
+
+  Future<void> _openFaqs() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FaqsPage(apiService: widget.apiService),
+      ),
+    );
+  }
+
+  Future<void> _openCmsPage(String slug, String title) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CmsPageViewer(
+          apiService: widget.apiService,
+          slug: slug,
+          fallbackTitle: title,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -202,6 +242,8 @@ class _AccountPageState extends State<AccountPage> {
                   onPressed: widget.onOpenCart,
                   icon: Icons.shopping_cart_outlined,
                 ),
+                const SizedBox(height: 16),
+                _buildSupportAccessSection(showWishlist: false),
               ],
             );
           }
@@ -279,20 +321,24 @@ class _AccountPageState extends State<AccountPage> {
                 child: Column(
                   children: [
                     _OptionTile(
+                      icon: Icons.favorite_border_rounded,
+                      title: 'Wishlist',
+                      subtitle:
+                          'Review your saved products and move them into the cart when ready.',
+                      onTap: _openWishlist,
+                    ),
+                    const Divider(color: AppColors.border, height: 24),
+                    _OptionTile(
                       icon: Icons.language_outlined,
                       title: l10n.t('account_language'),
                       subtitle: l10n.t('account_language_desc'),
                       onTap: _showLanguageSheet,
                     ),
-                    const Divider(color: AppColors.border, height: 24),
-                    _OptionTile(
-                      icon: Icons.support_agent_outlined,
-                      title: l10n.t('account_support'),
-                      subtitle: l10n.t('account_support_desc'),
-                    ),
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              _buildSupportAccessSection(showWishlist: false),
               const SizedBox(height: 16),
               ActionPanel(
                 title: l10n.t('account_open_orders_title'),
@@ -311,6 +357,85 @@ class _AccountPageState extends State<AccountPage> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildSupportAccessSection({required bool showWishlist}) {
+    return _InfoCard(
+      title: 'Help, support, and policies',
+      child: Column(
+        children: [
+          if (showWishlist) ...[
+            _OptionTile(
+              icon: Icons.favorite_border_rounded,
+              title: 'Wishlist',
+              subtitle: 'Open your saved products and continue shopping later.',
+              onTap: _openWishlist,
+            ),
+            const Divider(color: AppColors.border, height: 24),
+          ],
+          _OptionTile(
+            icon: Icons.support_agent_outlined,
+            title: 'Support & Contact',
+            subtitle:
+                'View customer care details, WhatsApp support, and social channels.',
+            onTap: _openSupportCenter,
+          ),
+          const Divider(color: AppColors.border, height: 24),
+          _OptionTile(
+            icon: Icons.quiz_outlined,
+            title: 'FAQs',
+            subtitle: 'Read frequently asked questions published from admin.',
+            onTap: _openFaqs,
+          ),
+          const Divider(color: AppColors.border, height: 24),
+          _OptionTile(
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy Policy',
+            subtitle: 'Read how your information is handled.',
+            onTap: () => _openCmsPage('privacy-policy', 'Privacy Policy'),
+          ),
+          const Divider(color: AppColors.border, height: 24),
+          _OptionTile(
+            icon: Icons.local_shipping_outlined,
+            title: 'Delivery Policy',
+            subtitle: 'Review delivery timing, coverage, and service terms.',
+            onTap: () => _openCmsPage('delivery-policy', 'Delivery Policy'),
+          ),
+          const Divider(color: AppColors.border, height: 24),
+          _OptionTile(
+            icon: Icons.assignment_return_outlined,
+            title: 'Return / Refund Policy',
+            subtitle: 'Understand return and refund conditions before ordering.',
+            onTap: () =>
+                _openCmsPage('return-refund-policy', 'Return / Refund Policy'),
+          ),
+          const Divider(color: AppColors.border, height: 24),
+          _OptionTile(
+            icon: Icons.gavel_outlined,
+            title: 'Terms & Conditions',
+            subtitle: 'Review the current terms for shopping and fulfillment.',
+            onTap: () => _openCmsPage(
+              'terms-and-conditions',
+              'Terms & Conditions',
+            ),
+          ),
+          const Divider(color: AppColors.border, height: 24),
+          _OptionTile(
+            icon: Icons.info_outline_rounded,
+            title: 'About Us',
+            subtitle: 'Read the latest brand and company profile.',
+            onTap: () => _openCmsPage('about-us', 'About Us'),
+          ),
+          const Divider(color: AppColors.border, height: 24),
+          _OptionTile(
+            icon: Icons.contact_mail_outlined,
+            title: 'Contact Us',
+            subtitle: 'Open the current contact page managed from admin.',
+            onTap: () => _openCmsPage('contact-us', 'Contact Us'),
+          ),
+        ],
       ),
     );
   }

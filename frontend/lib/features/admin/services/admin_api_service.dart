@@ -8,12 +8,18 @@ import 'package:http_parser/http_parser.dart' as http_parser;
 import '../../../core/constants/api_constants.dart';
 import '../../../models/branch_model.dart';
 import '../../../models/category_model.dart';
+import '../../../models/discovery_filter_models.dart';
 import '../../../models/order_model.dart';
 import '../../../models/product_model.dart';
+import '../../../models/search_term_model.dart';
 import '../../../models/user_model.dart';
 import '../models/admin_dashboard_model.dart';
+import '../models/admin_cms_page_model.dart';
+import '../models/admin_faq_model.dart';
 import '../models/admin_import_result.dart';
 import '../models/admin_offer_model.dart';
+import '../models/admin_review_model.dart';
+import '../models/admin_support_settings_model.dart';
 
 class AdminApiService {
   const AdminApiService();
@@ -295,6 +301,8 @@ class AdminApiService {
     String? search,
     String? status,
     int? branchId,
+    String? dateFrom,
+    String? dateTo,
   }) async {
     final uri = ApiConstants.endpoint(
       '/admin/orders',
@@ -302,6 +310,8 @@ class AdminApiService {
         if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
         if ((status ?? '').trim().isNotEmpty) 'status': status!.trim(),
         if (branchId != null) 'branch_id': branchId,
+        if ((dateFrom ?? '').trim().isNotEmpty) 'date_from': dateFrom!.trim(),
+        if ((dateTo ?? '').trim().isNotEmpty) 'date_to': dateTo!.trim(),
       },
     );
     final response = await http.get(uri, headers: await _headers());
@@ -354,12 +364,14 @@ class AdminApiService {
   }
 
   Future<List<OrderModel>> fetchDeliveries({
+    String? search,
     String? status,
     int? branchId,
   }) async {
     final uri = ApiConstants.endpoint(
       '/admin/deliveries',
       queryParameters: {
+        if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
         if ((status ?? '').trim().isNotEmpty) 'status': status!.trim(),
         if (branchId != null) 'branch_id': branchId,
       },
@@ -383,11 +395,359 @@ class AdminApiService {
     );
   }
 
+  Future<OrderModel> fetchDelivery(int orderId) async {
+    final uri = ApiConstants.endpoint('/admin/deliveries/$orderId');
+    final response = await http.get(uri, headers: await _headers());
+    final decoded = await _decodeObject(response, 'delivery');
+    return OrderModel.fromJson(
+      (decoded['order'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<List<AdminReviewModel>> fetchReviews({
+    int? productId,
+    int? rating,
+    String? status,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/admin/reviews',
+      queryParameters: {
+        if (productId != null) 'product_id': productId,
+        if (rating != null) 'rating': rating,
+        if ((status ?? '').trim().isNotEmpty) 'status': status!.trim(),
+      },
+    );
+    final response = await http.get(uri, headers: await _headers());
+    final items = await _decodeItems(response, 'reviews');
+    return items.map(AdminReviewModel.fromJson).toList();
+  }
+
+  Future<AdminReviewModel> fetchReview(int reviewId) async {
+    final uri = ApiConstants.endpoint('/admin/reviews/$reviewId');
+    final response = await http.get(uri, headers: await _headers());
+    final decoded = await _decodeObject(response, 'review');
+    return AdminReviewModel.fromJson(
+      (decoded['review'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<AdminReviewModel> updateReview(
+      int reviewId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/reviews/$reviewId');
+    final response = await http.patch(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'review');
+    return AdminReviewModel.fromJson(
+      (decoded['review'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<void> deleteReview(int reviewId) async {
+    final uri = ApiConstants.endpoint('/admin/reviews/$reviewId');
+    final response = await http.delete(uri, headers: await _headers());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _apiException(response, 'Failed to delete review');
+    }
+  }
+
   Future<List<AdminOfferModel>> fetchOffers() async {
     final uri = ApiConstants.endpoint('/admin/offers');
     final response = await http.get(uri, headers: await _headers());
     final items = await _decodeItems(response, 'offers');
     return items.map(AdminOfferModel.fromJson).toList();
+  }
+
+  Future<List<ProductModel>> fetchDiscoveryProducts({
+    String? search,
+    bool? hidden,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/admin/discovery/products',
+      queryParameters: {
+        if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
+        if (hidden != null) 'hidden': hidden,
+      },
+    );
+    final response = await http.get(uri, headers: await _headers());
+    final items = await _decodeItems(response, 'discovery products');
+    return items.map(ProductModel.fromJson).toList();
+  }
+
+  Future<ProductModel> updateDiscoveryProduct(
+    int productId,
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/products/$productId');
+    final response = await http.patch(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'discovery product');
+    return ProductModel.fromJson(
+      (decoded['product'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<List<SearchTermModel>> fetchSearchTerms() async {
+    final uri = ApiConstants.endpoint('/admin/discovery/search-terms');
+    final response = await http.get(uri, headers: await _headers());
+    final items = await _decodeItems(response, 'search terms');
+    return items.map(SearchTermModel.fromJson).toList();
+  }
+
+  Future<SearchTermModel> createSearchTerm(Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/search-terms');
+    final response = await http.post(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'search term');
+    return SearchTermModel.fromJson(
+      (decoded['term'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<SearchTermModel> updateSearchTerm(
+    int termId,
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/search-terms/$termId');
+    final response = await http.patch(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'search term');
+    return SearchTermModel.fromJson(
+      (decoded['term'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<void> deleteSearchTerm(int termId) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/search-terms/$termId');
+    final response = await http.delete(uri, headers: await _headers());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _apiException(response, 'Failed to delete search term');
+    }
+  }
+
+  Future<List<DiscoveryFilterGroupModel>> fetchFilterGroups() async {
+    final uri = ApiConstants.endpoint('/admin/discovery/filter-groups');
+    final response = await http.get(uri, headers: await _headers());
+    final items = await _decodeItems(response, 'filter groups');
+    return items.map(DiscoveryFilterGroupModel.fromJson).toList();
+  }
+
+  Future<DiscoveryFilterGroupModel> createFilterGroup(
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/filter-groups');
+    final response = await http.post(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'filter group');
+    return DiscoveryFilterGroupModel.fromJson(
+      (decoded['group'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<DiscoveryFilterGroupModel> updateFilterGroup(
+    int groupId,
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/filter-groups/$groupId');
+    final response = await http.patch(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'filter group');
+    return DiscoveryFilterGroupModel.fromJson(
+      (decoded['group'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<void> deleteFilterGroup(int groupId) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/filter-groups/$groupId');
+    final response = await http.delete(uri, headers: await _headers());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _apiException(response, 'Failed to delete filter group');
+    }
+  }
+
+  Future<List<DiscoveryFilterValueModel>> fetchFilterValues({
+    int? groupId,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/admin/discovery/filter-values',
+      queryParameters: {
+        if (groupId != null) 'group_id': groupId,
+      },
+    );
+    final response = await http.get(uri, headers: await _headers());
+    final items = await _decodeItems(response, 'filter values');
+    return items.map(DiscoveryFilterValueModel.fromJson).toList();
+  }
+
+  Future<DiscoveryFilterValueModel> createFilterValue(
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/filter-values');
+    final response = await http.post(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'filter value');
+    return DiscoveryFilterValueModel.fromJson(
+      (decoded['value'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<DiscoveryFilterValueModel> updateFilterValue(
+    int valueId,
+    Map<String, dynamic> payload,
+  ) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/filter-values/$valueId');
+    final response = await http.patch(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'filter value');
+    return DiscoveryFilterValueModel.fromJson(
+      (decoded['value'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<void> deleteFilterValue(int valueId) async {
+    final uri = ApiConstants.endpoint('/admin/discovery/filter-values/$valueId');
+    final response = await http.delete(uri, headers: await _headers());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _apiException(response, 'Failed to delete filter value');
+    }
+  }
+
+  Future<List<AdminCmsPageModel>> fetchCmsPages({
+    String? section,
+    String? search,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/admin/cms/pages',
+      queryParameters: {
+        if ((section ?? '').trim().isNotEmpty) 'section': section!.trim(),
+        if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
+      },
+    );
+    final response = await http.get(uri, headers: await _headers());
+    final items = await _decodeItems(response, 'cms pages');
+    return items.map(AdminCmsPageModel.fromJson).toList();
+  }
+
+  Future<AdminCmsPageModel> createCmsPage(Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/cms/pages');
+    final response = await http.post(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'cms page');
+    return AdminCmsPageModel.fromJson(
+      (decoded['page'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<AdminCmsPageModel> updateCmsPage(
+      int pageId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/cms/pages/$pageId');
+    final response = await http.patch(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'cms page');
+    return AdminCmsPageModel.fromJson(
+      (decoded['page'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<void> deleteCmsPage(int pageId) async {
+    final uri = ApiConstants.endpoint('/admin/cms/pages/$pageId');
+    final response = await http.delete(uri, headers: await _headers());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _apiException(response, 'Failed to delete CMS page');
+    }
+  }
+
+  Future<List<AdminFaqModel>> fetchFaqs() async {
+    final uri = ApiConstants.endpoint('/admin/faqs');
+    final response = await http.get(uri, headers: await _headers());
+    final items = await _decodeItems(response, 'faqs');
+    return items.map(AdminFaqModel.fromJson).toList();
+  }
+
+  Future<AdminFaqModel> createFaq(Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/faqs');
+    final response = await http.post(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'faq');
+    return AdminFaqModel.fromJson(
+      (decoded['faq'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<AdminFaqModel> updateFaq(int faqId, Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/faqs/$faqId');
+    final response = await http.patch(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'faq');
+    return AdminFaqModel.fromJson(
+      (decoded['faq'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<void> deleteFaq(int faqId) async {
+    final uri = ApiConstants.endpoint('/admin/faqs/$faqId');
+    final response = await http.delete(uri, headers: await _headers());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _apiException(response, 'Failed to delete FAQ');
+    }
+  }
+
+  Future<AdminSupportSettingsModel> fetchSupportSettings() async {
+    final uri = ApiConstants.endpoint('/admin/support/settings');
+    final response = await http.get(uri, headers: await _headers());
+    final decoded = await _decodeObject(response, 'support settings');
+    return AdminSupportSettingsModel.fromJson(
+      (decoded['settings'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<AdminSupportSettingsModel> updateSupportSettings(
+      Map<String, dynamic> payload) async {
+    final uri = ApiConstants.endpoint('/admin/support/settings');
+    final response = await http.put(
+      uri,
+      headers: await _headers(json: true),
+      body: jsonEncode(payload),
+    );
+    final decoded = await _decodeObject(response, 'support settings');
+    return AdminSupportSettingsModel.fromJson(
+      (decoded['settings'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
   }
 
   Future<AdminOfferModel> createOffer(Map<String, dynamic> payload) async {

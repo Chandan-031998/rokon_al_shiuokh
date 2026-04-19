@@ -9,6 +9,7 @@ from extensions import db
 from models.branch import Branch
 from models.cart_item import CartItem
 from models.product import Product
+from models.support_setting import SupportSetting
 from services.db_compat import column_exists, load_only_existing
 from utils.api import api_response, error_response
 from utils.auth import resolve_cart_owner
@@ -48,7 +49,7 @@ def add_cart_item():
         option = load_only_existing(
             Product,
             'products',
-            ['id', 'branch_id', 'is_active'],
+            ['id', 'branch_id', 'is_active', 'sale_price'],
         )
         if option is not None:
             product_query = product_query.options(option)
@@ -57,6 +58,12 @@ def add_cart_item():
             return error_response('Product not found.', status=404)
 
         resolved_branch_id = branch_id or product.branch_id
+        if resolved_branch_id is not None:
+            branch = Branch.query.filter_by(id=resolved_branch_id, is_active=True).first()
+            if not branch:
+                return error_response('Selected branch not found.', status=404)
+            if product.branch_id is not None and product.branch_id != resolved_branch_id:
+                return error_response('This product is not available for the selected branch.', status=400)
         cart_item = _find_cart_item(owner, product_id, resolved_branch_id)
         if cart_item:
             cart_item.quantity += quantity
@@ -170,6 +177,7 @@ def _cart_response(owner):
                 'name',
                 'name_ar',
                 'price',
+                'sale_price',
                 'image_url',
                 'description',
                 'sku',
@@ -201,6 +209,7 @@ def _cart_response(owner):
         return error_response('Unable to load cart.', status=500)
 
     subtotal = Decimal('0')
+    payment_settings = SupportSetting.query.order_by(SupportSetting.id.asc()).first()
     serialized_items = []
     has_pack_size = column_exists('products', 'pack_size')
 
@@ -209,7 +218,7 @@ def _cart_response(owner):
         if not product:
             continue
 
-        price_value = Decimal(str(product.price or 0))
+        price_value = _effective_product_price(product)
         line_total = price_value * item.quantity
         subtotal += line_total
         branch = branches.get(item.branch_id)
@@ -224,6 +233,7 @@ def _cart_response(owner):
                 'name': product.name,
                 'name_ar': product.name_ar,
                 'price': float(price_value),
+                'sale_price': float(product.sale_price) if product.sale_price is not None else None,
                 'image_url': product.resolved_image_url,
                 'description': product.description,
                 'sku': product.sku,
@@ -245,6 +255,7 @@ def _cart_response(owner):
         'subtotal': float(subtotal),
         'total': float(subtotal),
         'currency': 'SAR',
+        'payment_methods': _serialize_cart_payment_methods(payment_settings),
     })
 
 
@@ -254,4 +265,38 @@ def _empty_cart_response():
         'subtotal': 0.0,
         'total': 0.0,
         'currency': 'SAR',
+        'payment_methods': _serialize_cart_payment_methods(None),
     })
+
+
+def _effective_product_price(product: Product) -> Decimal:
+    if product.sale_price is not None:
+        sale_price = Decimal(str(product.sale_price))
+        base_price = Decimal(str(product.price or 0))
+        if sale_price > 0 and sale_price < base_price:
+            return sale_price
+    return Decimal(str(product.price or 0))
+
+
+def _serialize_cart_payment_methods(settings: SupportSetting | None) -> list[dict]:
+    if settings is None:
+        return [
+            {'code': 'cod', 'label': 'Cash on Delivery', 'enabled': True},
+        ]
+    return [
+        {
+            'code': 'cod',
+            'label': settings.payment_cod_label or 'Cash on Delivery',
+            'enabled': bool(settings.payment_cod_enabled),
+        },
+        {
+            'code': 'card',
+            'label': settings.payment_card_label or 'Card Payment',
+            'enabled': bool(settings.payment_card_enabled),
+        },
+        {
+            'code': 'bank_transfer',
+            'label': settings.payment_bank_transfer_label or 'Bank Transfer',
+            'enabled': bool(settings.payment_bank_transfer_enabled),
+        },
+    ]

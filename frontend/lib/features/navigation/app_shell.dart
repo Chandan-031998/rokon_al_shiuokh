@@ -45,6 +45,8 @@ class _AppShellState extends State<AppShell> {
     super.initState();
     _currentTab = widget.initialTab;
     _desktopProfileFuture = _loadDesktopProfile();
+    widget.apiService.refreshCartCount();
+    widget.apiService.refreshWishlistIds();
   }
 
   @override
@@ -106,6 +108,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _desktopProfileFuture = _loadDesktopProfile();
     });
+    widget.apiService.refreshWishlistIds();
   }
 
   @override
@@ -214,8 +217,12 @@ class _AppShellState extends State<AppShell> {
                     label: l10n.t('nav_categories'),
                   ),
                   NavigationDestination(
-                    icon: const Icon(Icons.shopping_cart_outlined),
-                    selectedIcon: const Icon(Icons.shopping_cart),
+                    icon: const _CartBadgeIcon(
+                      icon: Icon(Icons.shopping_cart_outlined),
+                    ),
+                    selectedIcon: const _CartBadgeIcon(
+                      icon: Icon(Icons.shopping_cart),
+                    ),
                     label: l10n.t('nav_cart'),
                   ),
                   NavigationDestination(
@@ -488,7 +495,9 @@ class _DesktopHeaderActions extends StatelessWidget {
             foregroundColor: AppColors.primaryDark,
             side: const BorderSide(color: AppColors.border),
           ),
-          icon: const Icon(Icons.shopping_bag_outlined),
+          icon: const _CartBadgeIcon(
+            icon: Icon(Icons.shopping_bag_outlined),
+          ),
           tooltip: l10n.t('nav_cart'),
         ),
         SizedBox(width: compact ? 8 : 10),
@@ -606,6 +615,31 @@ class _DesktopHeaderActions extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _CartBadgeIcon extends StatelessWidget {
+  final Widget icon;
+
+  const _CartBadgeIcon({
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int>(
+      valueListenable: ApiService.cartCountListenable,
+      builder: (context, count, child) {
+        if (count <= 0) {
+          return child!;
+        }
+        return Badge(
+          label: Text('$count'),
+          child: child,
+        );
+      },
+      child: icon,
     );
   }
 }

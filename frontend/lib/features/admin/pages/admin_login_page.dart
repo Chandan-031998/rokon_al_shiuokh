@@ -48,7 +48,13 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       if (!mounted) {
         return;
       }
-      context.go('/admin');
+      final from = GoRouterState.of(context).uri.queryParameters['from'];
+      final target = (from != null &&
+              from.startsWith('/admin') &&
+              from != '/admin/login')
+          ? from
+          : '/admin';
+      context.go(target);
     } catch (error) {
       if (!mounted) {
         return;

@@ -22,7 +22,8 @@ class AdminShell extends StatelessWidget {
   });
 
   List<({String label, String path, IconData icon})> _items(
-      AppLocalizations l10n) => <({String label, String path, IconData icon})>[
+          AppLocalizations l10n) =>
+      <({String label, String path, IconData icon})>[
         (
           label: l10n.t('admin_nav_dashboard'),
           path: '/admin',
@@ -62,6 +63,16 @@ class AdminShell extends StatelessWidget {
           label: l10n.t('admin_nav_offers'),
           path: '/admin/offers',
           icon: Icons.local_offer_outlined,
+        ),
+        (
+          label: l10n.t('admin_nav_content'),
+          path: '/admin/content',
+          icon: Icons.article_outlined,
+        ),
+        (
+          label: l10n.t('admin_nav_reviews'),
+          path: '/admin/reviews',
+          icon: Icons.rate_review_outlined,
         ),
         (
           label: l10n.t('admin_nav_import'),
@@ -118,7 +129,7 @@ class AdminShell extends StatelessWidget {
           ? null
           : Drawer(
               width: 280,
-            child: _Sidebar(
+              child: _Sidebar(
                 items: items,
                 currentPath: path,
                 user: sessionController.user,
@@ -187,17 +198,19 @@ class _Sidebar extends StatelessWidget {
                       children: [
                         Text(
                           context.l10n.t('admin_brand_title'),
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.w800,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: AppColors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                         ),
                         Text(
                           context.l10n.t('admin_brand_subtitle'),
-                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: AppColors.gold,
-                                letterSpacing: 0.7,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    color: AppColors.gold,
+                                    letterSpacing: 0.7,
+                                  ),
                         ),
                       ],
                     ),
@@ -234,7 +247,7 @@ class _Sidebar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    user?.fullName ?? 'Admin',
+                    user?.fullName ?? context.l10n.t('admin_user_fallback'),
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: AppColors.white,
                           fontWeight: FontWeight.w700,
@@ -254,7 +267,8 @@ class _Sidebar extends StatelessWidget {
                       onPressed: onLogout,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.white,
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+                        side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.16)),
                       ),
                       icon: const Icon(Icons.logout),
                       label: Text(context.l10n.t('common_logout')),
@@ -286,7 +300,8 @@ class _SidebarItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? Colors.white.withValues(alpha: 0.12) : Colors.transparent,
+      color:
+          selected ? Colors.white.withValues(alpha: 0.12) : Colors.transparent,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -306,7 +321,8 @@ class _SidebarItem extends StatelessWidget {
                   label,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: selected ? AppColors.white : AppColors.creamSoft,
-                        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight:
+                            selected ? FontWeight.w800 : FontWeight.w600,
                       ),
                 ),
               ),
@@ -339,72 +355,159 @@ class _Topbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = items.firstWhere(
-      (item) => item.path == currentPath,
-      orElse: () => items.first,
-    ).label;
+    final title = items
+        .firstWhere(
+          (item) => item.path == currentPath,
+          orElse: () => items.first,
+        )
+        .label;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 760;
 
     return Container(
-      height: 84,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 24),
       decoration: const BoxDecoration(
         color: AppColors.cream,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         bottom: false,
-        child: Row(
-          children: [
-            if (showMenuButton)
-              IconButton(
-                onPressed: onMenuPressed,
-                icon: const Icon(Icons.menu_rounded),
-              ),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: compact ? 12 : 14),
+          child: compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        if (showMenuButton)
+                          IconButton(
+                            onPressed: onMenuPressed,
+                            icon: const Icon(Icons.menu_rounded),
+                          ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                              Text(
+                                context.l10n.t('admin_topbar_subtitle'),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: AppColors.textMuted),
+                              ),
+                            ],
+                          ),
                         ),
-                  ),
-                  Text(
-                    context.l10n.t('admin_topbar_subtitle'),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textMuted,
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        LanguageToggle(
+                          controller: localeController,
+                          compact: true,
                         ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            LanguageToggle(
-              controller: localeController,
-              compact: true,
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.admin_panel_settings_outlined, size: 18),
-                  const SizedBox(width: 10),
-                  Text(
-                    user?.fullName ?? context.l10n.t('admin_user_fallback'),
-                    style: Theme.of(context).textTheme.labelLarge,
-                  ),
-                ],
-              ),
-            ),
-          ],
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.admin_panel_settings_outlined,
+                                    size: 18),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    user?.fullName ??
+                                        context.l10n.t('admin_user_fallback'),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        Theme.of(context).textTheme.labelLarge,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    if (showMenuButton)
+                      IconButton(
+                        onPressed: onMenuPressed,
+                        icon: const Icon(Icons.menu_rounded),
+                      ),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          Text(
+                            context.l10n.t('admin_topbar_subtitle'),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.textMuted,
+                                    ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    LanguageToggle(
+                      controller: localeController,
+                      compact: true,
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.admin_panel_settings_outlined,
+                              size: 18),
+                          const SizedBox(width: 10),
+                          Text(
+                            user?.fullName ??
+                                context.l10n.t('admin_user_fallback'),
+                            style: Theme.of(context).textTheme.labelLarge,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
         ),
       ),
     );

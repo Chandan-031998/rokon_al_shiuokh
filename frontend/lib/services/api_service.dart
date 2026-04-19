@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,9 +10,18 @@ import '../core/constants/api_constants.dart';
 import '../models/branch_model.dart';
 import '../models/cart_model.dart';
 import '../models/category_model.dart';
+import '../models/cms_page_model.dart';
+import '../models/discovery_filter_models.dart';
+import '../models/faq_model.dart';
+import '../models/offer_model.dart';
 import '../models/order_model.dart';
+import '../models/product_detail_model.dart';
 import '../models/product_model.dart';
+import '../models/review_model.dart';
+import '../models/search_term_model.dart';
+import '../models/support_settings_model.dart';
 import '../models/user_model.dart';
+import '../models/wishlist_item_model.dart';
 
 class ApiService {
   const ApiService();
@@ -23,6 +33,9 @@ class ApiService {
   static const _storedUserKey = 'auth_user_json';
   static const _guestHeader = 'X-Guest-Session-ID';
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage();
+  static final ValueNotifier<int> cartCountListenable = ValueNotifier<int>(0);
+  static final ValueNotifier<Set<int>> wishlistIdsListenable =
+      ValueNotifier<Set<int>>(<int>{});
   static List<CategoryModel>? _cachedCategories;
   static DateTime? _cachedCategoriesAt;
   static Future<List<CategoryModel>>? _pendingCategories;
@@ -175,6 +188,25 @@ class ApiService {
     _pendingFeaturedProducts = null;
   }
 
+  Future<void> refreshCartCount() async {
+    try {
+      final cart = await fetchCart();
+      _setCartCount(cart.totalQuantity);
+    } catch (_) {
+      _setCartCount(0);
+    }
+  }
+
+  void _setCartCount(int count) {
+    if (cartCountListenable.value != count) {
+      cartCountListenable.value = count;
+    }
+  }
+
+  void _setWishlistIds(Set<int> ids) {
+    wishlistIdsListenable.value = Set<int>.unmodifiable(ids);
+  }
+
   Future<List<CategoryModel>> fetchCategories(
       {bool forceRefresh = false}) async {
     if (!forceRefresh &&
@@ -204,11 +236,14 @@ class ApiService {
     final uri = ApiConstants.endpoint('/categories/');
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'categories');
-    if (decoded is! List) {
-      throw Exception('Invalid categories payload');
-    }
+    final rawItems = switch (decoded) {
+      List<dynamic> items => items,
+      Map<String, dynamic> object when object['items'] is List<dynamic> =>
+        object['items'] as List<dynamic>,
+      _ => throw Exception('Invalid categories payload'),
+    };
 
-    return decoded
+    return rawItems
         .whereType<Map<String, dynamic>>()
         .map(CategoryModel.fromJson)
         .toList();
@@ -265,10 +300,78 @@ class ApiService {
     return branches;
   }
 
+  Future<List<CmsPageModel>> fetchCmsPages({String? section}) async {
+    final uri = ApiConstants.endpoint(
+      '/content/pages',
+      queryParameters: {
+        if ((section ?? '').trim().isNotEmpty) 'section': section!.trim(),
+      },
+    );
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'content pages');
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid content pages payload');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(CmsPageModel.fromJson)
+        .toList();
+  }
+
+  Future<CmsPageModel?> fetchCmsPageBySlug(String slug) async {
+    final uri = ApiConstants.endpoint('/content/pages/$slug');
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'content page');
+    final page = decoded['page'];
+    if (page is! Map<String, dynamic>) {
+      return null;
+    }
+    return CmsPageModel.fromJson(page);
+  }
+
+  Future<List<FaqModel>> fetchFaqs() async {
+    final uri = ApiConstants.endpoint('/content/faqs');
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'faqs');
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid faqs payload');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(FaqModel.fromJson)
+        .toList();
+  }
+
+  Future<SupportSettingsModel> fetchSupportSettings() async {
+    final uri = ApiConstants.endpoint('/content/support');
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'support settings');
+    return SupportSettingsModel.fromJson(
+      (decoded['settings'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+  }
+
+  Future<List<OfferModel>> fetchOffers() async {
+    final uri = ApiConstants.endpoint('/content/offers');
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'offers');
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid offers payload');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(OfferModel.fromJson)
+        .toList();
+  }
+
   Future<List<ProductModel>> fetchProducts({
     int? categoryId,
     int? branchId,
     String? query,
+    List<int> filterValueIds = const <int>[],
     bool featuredOnly = false,
   }) async {
     final uri = featuredOnly
@@ -279,16 +382,21 @@ class ApiService {
               if (categoryId != null) 'category_id': categoryId,
               if (branchId != null) 'branch_id': branchId,
               if ((query ?? '').trim().isNotEmpty) 'q': query!.trim(),
+              if (filterValueIds.isNotEmpty)
+                'filter_value_ids': filterValueIds.join(','),
             },
           );
 
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'products');
-    if (decoded is! List) {
-      throw Exception('Invalid products payload');
-    }
+    final rawItems = switch (decoded) {
+      List<dynamic> items => items,
+      Map<String, dynamic> object when object['items'] is List<dynamic> =>
+        object['items'] as List<dynamic>,
+      _ => throw Exception('Invalid products payload'),
+    };
 
-    return decoded
+    return rawItems
         .whereType<Map<String, dynamic>>()
         .map(ProductModel.fromJson)
         .toList();
@@ -319,6 +427,212 @@ class ApiService {
     }
   }
 
+  Future<ProductDetailModel> fetchProductDetail(int productId) async {
+    final uri = ApiConstants.endpoint('/products/$productId');
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'product details');
+    return ProductDetailModel.fromJson(decoded);
+  }
+
+  Future<List<ProductModel>> searchDiscoveryProducts({
+    required String query,
+    int? categoryId,
+    int? branchId,
+    List<int> filterValueIds = const <int>[],
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/discovery/search',
+      queryParameters: {
+        'q': query.trim(),
+        if (categoryId != null) 'category_id': categoryId,
+        if (branchId != null) 'branch_id': branchId,
+        if (filterValueIds.isNotEmpty)
+          'filter_value_ids': filterValueIds.join(','),
+      },
+    );
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'discovery search');
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid discovery search payload');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(ProductModel.fromJson)
+        .toList();
+  }
+
+  Future<List<ProductModel>> fetchCategoryDiscoveryProducts(
+    int categoryId, {
+    int? branchId,
+    String? query,
+    List<int> filterValueIds = const <int>[],
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/discovery/categories/$categoryId/products',
+      queryParameters: {
+        if (branchId != null) 'branch_id': branchId,
+        if ((query ?? '').trim().isNotEmpty) 'q': query!.trim(),
+        if (filterValueIds.isNotEmpty)
+          'filter_value_ids': filterValueIds.join(','),
+      },
+    );
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(
+      response,
+      'category discovery products',
+    );
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid category discovery payload');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(ProductModel.fromJson)
+        .toList();
+  }
+
+  Future<List<SearchTermModel>> fetchPopularSearchTerms({
+    String? type,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/discovery/popular-searches',
+      queryParameters: {
+        if ((type ?? '').trim().isNotEmpty) 'type': type!.trim(),
+      },
+    );
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'popular searches');
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid popular searches payload');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(SearchTermModel.fromJson)
+        .toList();
+  }
+
+  Future<List<DiscoveryFilterGroupModel>> fetchDiscoveryFilters({
+    int? categoryId,
+    int? branchId,
+    String? query,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/discovery/filters',
+      queryParameters: {
+        if (categoryId != null) 'category_id': categoryId,
+        if (branchId != null) 'branch_id': branchId,
+        if ((query ?? '').trim().isNotEmpty) 'q': query!.trim(),
+      },
+    );
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'discovery filters');
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid discovery filters payload');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(DiscoveryFilterGroupModel.fromJson)
+        .toList();
+  }
+
+  Future<List<ReviewModel>> fetchProductReviews(int productId) async {
+    final uri = ApiConstants.endpoint('/reviews/product/$productId');
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'reviews');
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid reviews payload');
+    }
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(ReviewModel.fromJson)
+        .toList();
+  }
+
+  Future<ReviewModel> submitReview({
+    required int productId,
+    required int rating,
+    int? orderId,
+    String? title,
+    String? body,
+  }) async {
+    final uri = ApiConstants.endpoint('/reviews/');
+    final response = await http.post(
+      uri,
+      headers: await _buildHeaders(json: true),
+      body: jsonEncode({
+        'product_id': productId,
+        'rating': rating,
+        if (orderId != null) 'order_id': orderId,
+        if ((title ?? '').trim().isNotEmpty) 'title': title!.trim(),
+        if ((body ?? '').trim().isNotEmpty) 'body': body!.trim(),
+      }),
+    );
+    final decoded = await _decodeObjectResponse(response, 'review');
+    return ReviewModel.fromJson(
+      (decoded['review'] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{},
+    );
+  }
+
+  Future<List<WishlistItemModel>> fetchWishlist() async {
+    final uri = ApiConstants.endpoint('/wishlist/');
+    final response = await http.get(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'wishlist');
+    final items = decoded['items'];
+    if (items is! List) {
+      throw Exception('Invalid wishlist payload');
+    }
+    final wishlistItems = items
+        .whereType<Map<String, dynamic>>()
+        .map(WishlistItemModel.fromJson)
+        .toList();
+    _setWishlistIds(wishlistItems.map((item) => item.productId).toSet());
+    return wishlistItems;
+  }
+
+  Future<WishlistItemModel?> addWishlistItem(int productId) async {
+    final uri = ApiConstants.endpoint('/wishlist/$productId');
+    final response = await http.post(uri, headers: await _buildHeaders());
+    final decoded = await _decodeObjectResponse(response, 'wishlist');
+    final item = decoded['item'];
+    if (item is! Map<String, dynamic>) {
+      return null;
+    }
+    final wishlistItem = WishlistItemModel.fromJson(item);
+    final updatedIds = Set<int>.from(wishlistIdsListenable.value)
+      ..add(wishlistItem.productId);
+    _setWishlistIds(updatedIds);
+    return wishlistItem;
+  }
+
+  Future<void> removeWishlistItem(int productId) async {
+    final uri = ApiConstants.endpoint('/wishlist/$productId');
+    final response = await http.delete(uri, headers: await _buildHeaders());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _apiExceptionFromResponse(response, 'Failed to remove wishlist item');
+    }
+    final updatedIds = Set<int>.from(wishlistIdsListenable.value)
+      ..remove(productId);
+    _setWishlistIds(updatedIds);
+  }
+
+  Future<void> refreshWishlistIds() async {
+    if (!await hasAuthSession()) {
+      _setWishlistIds(<int>{});
+      return;
+    }
+
+    try {
+      await fetchWishlist();
+    } catch (_) {
+      _setWishlistIds(<int>{});
+    }
+  }
+
   Future<CartModel> fetchCart() async {
     final uri = ApiConstants.endpoint('/cart/');
     final response = await http.get(uri, headers: await _buildHeaders());
@@ -326,7 +640,9 @@ class ApiService {
     if (decoded is! Map<String, dynamic>) {
       throw Exception('Invalid cart payload');
     }
-    return CartModel.fromJson(decoded);
+    final cart = CartModel.fromJson(decoded);
+    _setCartCount(cart.totalQuantity);
+    return cart;
   }
 
   Future<CartModel> addToCart({
@@ -348,7 +664,9 @@ class ApiService {
     if (decoded is! Map<String, dynamic>) {
       throw Exception('Invalid cart payload');
     }
-    return CartModel.fromJson(decoded);
+    final cart = CartModel.fromJson(decoded);
+    _setCartCount(cart.totalQuantity);
+    return cart;
   }
 
   Future<CartModel> updateCartItem({
@@ -369,13 +687,19 @@ class ApiService {
     if (decoded is! Map<String, dynamic>) {
       throw Exception('Invalid cart payload');
     }
-    return CartModel.fromJson(decoded);
+    final cart = CartModel.fromJson(decoded);
+    _setCartCount(cart.totalQuantity);
+    return cart;
   }
 
   Future<CartModel> removeCartItem(int itemId) async {
     final uri = ApiConstants.endpoint('/cart/items/$itemId');
     final response = await http.delete(uri, headers: await _buildHeaders());
-    return CartModel.fromJson(await _decodeObjectResponse(response, 'cart'));
+    final cart = CartModel.fromJson(
+      await _decodeObjectResponse(response, 'cart'),
+    );
+    _setCartCount(cart.totalQuantity);
+    return cart;
   }
 
   Future<UserModel> register({
@@ -431,6 +755,7 @@ class ApiService {
       throw Exception('Invalid authentication payload');
     }
     await _persistAuthSession(token: token, user: user);
+    await refreshWishlistIds();
     return user;
   }
 
@@ -481,6 +806,8 @@ class ApiService {
 
   Future<void> logout() async {
     await _clearAuthSession();
+    _setCartCount(0);
+    _setWishlistIds(<int>{});
   }
 
   Future<UserModel> updateProfile({
@@ -511,7 +838,9 @@ class ApiService {
   Future<OrderModel> placeOrder({
     required String orderType,
     required int branchId,
+    required String paymentMethod,
     required String notes,
+    int? addressId,
     Map<String, String>? address,
   }) async {
     final uri = ApiConstants.endpoint('/orders/');
@@ -521,15 +850,19 @@ class ApiService {
       body: jsonEncode({
         'order_type': orderType,
         'branch_id': branchId,
+        'payment_method': paymentMethod,
         'notes': notes.trim(),
+        if (addressId != null) 'address_id': addressId,
         if (address != null) 'address': address,
       }),
     );
     final decoded = await _decodeObjectResponse(response, 'order');
-    return OrderModel.fromJson(
+    final order = OrderModel.fromJson(
       (decoded['order'] as Map?)?.cast<String, dynamic>() ??
           const <String, dynamic>{},
     );
+    _setCartCount(0);
+    return order;
   }
 
   Future<List<OrderModel>> fetchOrders() async {

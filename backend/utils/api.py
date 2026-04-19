@@ -2,21 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from flask import jsonify, make_response
+from flask import jsonify, request
 
 
-def api_response(
-    payload: dict[str, Any] | list[Any],
-    status: int = 200,
-    *,
-    cache_seconds: int | None = None,
-):
-    response = make_response(jsonify(payload), status)
-    if cache_seconds is not None:
-        response.headers["Cache-Control"] = (
-            f"public, max-age={cache_seconds}, s-maxage={cache_seconds}"
-        )
-    return response
+def api_response(payload: dict[str, Any] | list[Any], status: int = 200):
+    return jsonify(payload), status
 
 
 def success_response(
@@ -51,3 +41,31 @@ def items_response(items: list[Any], *, status: int = 200, **extra: Any):
     body: dict[str, Any] = {"items": items}
     body.update(extra)
     return api_response(body, status=status)
+
+
+def parse_pagination_args(
+    *,
+    default_page: int = 1,
+    default_per_page: int = 24,
+    max_per_page: int = 60,
+) -> tuple[int, int]:
+    page = request.args.get("page", default=default_page, type=int) or default_page
+    per_page = (
+        request.args.get("per_page", default=default_per_page, type=int)
+        or default_per_page
+    )
+    page = max(page, 1)
+    per_page = min(max(per_page, 1), max_per_page)
+    return page, per_page
+
+
+def pagination_payload(*, page: int, per_page: int, total: int) -> dict[str, Any]:
+    page_count = max((total + per_page - 1) // per_page, 1)
+    return {
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "page_count": page_count,
+        "has_next": page < page_count,
+        "has_prev": page > 1,
+    }

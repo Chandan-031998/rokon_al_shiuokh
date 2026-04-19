@@ -12,6 +12,13 @@ class ApiConstants {
       return configuredBaseUrl;
     }
 
+    if (kDebugMode) {
+      if (kIsWeb) {
+        return webDevelopmentBaseUrl;
+      }
+      return emulatorDevelopmentBaseUrl;
+    }
+
     return productionBaseUrl;
   }
 

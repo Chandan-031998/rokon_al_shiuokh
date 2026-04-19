@@ -4,10 +4,12 @@ class BranchModel {
   final String? city;
   final String? address;
   final String? phone;
+  final String? mapLink;
   final bool isActive;
   final bool pickupAvailable;
   final bool deliveryAvailable;
   final String? deliveryCoverage;
+  final bool productAvailable;
   final int productCount;
   final int orderCount;
 
@@ -17,10 +19,12 @@ class BranchModel {
     this.city,
     this.address,
     this.phone,
+    this.mapLink,
     this.isActive = true,
     this.pickupAvailable = true,
     this.deliveryAvailable = true,
     this.deliveryCoverage,
+    this.productAvailable = true,
     this.productCount = 0,
     this.orderCount = 0,
   });
@@ -32,10 +36,12 @@ class BranchModel {
       city: _asNullableString(json['city']),
       address: _asNullableString(json['address']),
       phone: _asNullableString(json['phone']),
+      mapLink: _asNullableString(json['map_link']),
       isActive: _asBool(json['is_active'], fallback: true),
       pickupAvailable: _asBool(json['pickup_available'], fallback: true),
       deliveryAvailable: _asBool(json['delivery_available'], fallback: true),
       deliveryCoverage: _asNullableString(json['delivery_coverage']),
+      productAvailable: _asBool(json['product_available'], fallback: true),
       productCount: _asInt(json['product_count']),
       orderCount: _asInt(json['order_count']),
     );

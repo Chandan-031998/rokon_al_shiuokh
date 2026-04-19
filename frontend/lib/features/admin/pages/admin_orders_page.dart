@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../localization/app_localizations.dart';
 import '../../../../models/branch_model.dart';
 import '../../../../models/order_model.dart';
 import '../services/admin_api_service.dart';
@@ -20,6 +21,8 @@ class AdminOrdersPage extends StatefulWidget {
 
 class _AdminOrdersPageState extends State<AdminOrdersPage> {
   final _searchController = TextEditingController();
+  final _dateFromController = TextEditingController();
+  final _dateToController = TextEditingController();
   String? _status;
   int? _branchId;
   bool _loading = true;
@@ -46,6 +49,8 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _dateFromController.dispose();
+    _dateToController.dispose();
     super.dispose();
   }
 
@@ -60,6 +65,8 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
           search: _searchController.text,
           status: _status,
           branchId: _branchId,
+          dateFrom: _dateFromController.text,
+          dateTo: _dateToController.text,
         ),
         widget.apiService.fetchBranches(),
       ]);
@@ -97,81 +104,210 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return AdminPageFrame(
-      title: 'Orders',
-      subtitle: 'Review orders, inspect customer and branch details, and update fulfillment status.',
+      title: l10n.t('admin_orders_title'),
+      subtitle: l10n.t('admin_orders_subtitle'),
       actions: [
         OutlinedButton.icon(
           onPressed: _load,
           icon: const Icon(Icons.refresh),
-          label: const Text('Refresh'),
+          label: Text(l10n.t('common_refresh')),
         ),
       ],
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Search by order, customer, or email',
-                      prefixIcon: Icon(Icons.search),
+          LayoutBuilder(
+              builder: (context, constraints) => Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: AppColors.border),
                     ),
-                    onSubmitted: (_) => _load(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 220,
-                  child: DropdownButtonFormField<String?>(
-                    initialValue: _status,
-                    decoration: const InputDecoration(labelText: 'Status'),
-                    items: [
-                      const DropdownMenuItem<String?>(value: null, child: Text('All statuses')),
-                      ..._statuses.map(
-                        (status) => DropdownMenuItem<String?>(
-                          value: status,
-                          child: Text(_statusLabel(status)),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() => _status = value),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 220,
-                  child: DropdownButtonFormField<int?>(
-                    initialValue: _branchId,
-                    decoration: const InputDecoration(labelText: 'Branch'),
-                    items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('All branches')),
-                      ..._branches.map(
-                        (branch) => DropdownMenuItem<int?>(
-                          value: branch.id,
-                          child: Text(branch.name),
-                        ),
-                      ),
-                    ],
-                    onChanged: (value) => setState(() => _branchId = value),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _load,
-                  child: const Text('Apply'),
-                ),
-              ],
-            ),
-          ),
+                    child: constraints.maxWidth < 1180
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              TextField(
+                                controller: _searchController,
+                                decoration: InputDecoration(
+                                  labelText: l10n.t('admin_orders_search'),
+                                  prefixIcon: const Icon(Icons.search),
+                                ),
+                                onSubmitted: (_) => _load(),
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<String?>(
+                                initialValue: _status,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: l10n.t('admin_table_status'),
+                                ),
+                                items: [
+                                  DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text(
+                                        l10n.t('admin_orders_all_statuses')),
+                                  ),
+                                  ..._statuses.map(
+                                    (status) => DropdownMenuItem<String?>(
+                                      value: status,
+                                      child:
+                                          Text(_statusLabel(context, status)),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (value) =>
+                                    setState(() => _status = value),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _dateFromController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Date From',
+                                  hintText: '2026-04-18',
+                                  prefixIcon: Icon(Icons.event_outlined),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: _dateToController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Date To',
+                                  hintText: '2026-04-18',
+                                  prefixIcon: Icon(Icons.event_available_outlined),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              DropdownButtonFormField<int?>(
+                                initialValue: _branchId,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  labelText: l10n.t('products_filter_branch'),
+                                ),
+                                items: [
+                                  DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text(
+                                        l10n.t('products_filter_all_branches')),
+                                  ),
+                                  ..._branches.map(
+                                    (branch) => DropdownMenuItem<int?>(
+                                      value: branch.id,
+                                      child: Text(branch.name),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (value) =>
+                                    setState(() => _branchId = value),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: _load,
+                                child: Text(l10n.t('common_apply')),
+                              ),
+                            ],
+                          )
+                        : Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            crossAxisAlignment: WrapCrossAlignment.end,
+                            children: [
+                              SizedBox(
+                                width: (constraints.maxWidth * 0.38)
+                                    .clamp(260.0, 420.0)
+                                    .toDouble(),
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    labelText: l10n.t('admin_orders_search'),
+                                    prefixIcon: const Icon(Icons.search),
+                                  ),
+                                  onSubmitted: (_) => _load(),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 240,
+                                child: DropdownButtonFormField<String?>(
+                                  initialValue: _status,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: l10n.t('admin_table_status'),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text(
+                                          l10n.t('admin_orders_all_statuses')),
+                                    ),
+                                    ..._statuses.map(
+                                      (status) => DropdownMenuItem<String?>(
+                                        value: status,
+                                        child:
+                                            Text(_statusLabel(context, status)),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (value) =>
+                                      setState(() => _status = value),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 240,
+                                child: TextField(
+                                  controller: _dateFromController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Date From',
+                                    hintText: '2026-04-18',
+                                    prefixIcon: Icon(Icons.event_outlined),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 240,
+                                child: TextField(
+                                  controller: _dateToController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Date To',
+                                    hintText: '2026-04-18',
+                                    prefixIcon:
+                                        Icon(Icons.event_available_outlined),
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 240,
+                                child: DropdownButtonFormField<int?>(
+                                  initialValue: _branchId,
+                                  isExpanded: true,
+                                  decoration: InputDecoration(
+                                    labelText: l10n.t('products_filter_branch'),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem<int?>(
+                                      value: null,
+                                      child: Text(l10n
+                                          .t('products_filter_all_branches')),
+                                    ),
+                                    ..._branches.map(
+                                      (branch) => DropdownMenuItem<int?>(
+                                        value: branch.id,
+                                        child: Text(branch.name),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (value) =>
+                                      setState(() => _branchId = value),
+                                ),
+                              ),
+                              ElevatedButton(
+                                onPressed: _load,
+                                child: Text(l10n.t('common_apply')),
+                              ),
+                            ],
+                          ),
+                  )),
           const SizedBox(height: 18),
           Container(
             width: double.infinity,
@@ -182,7 +318,8 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
               border: Border.all(color: AppColors.border),
             ),
             child: _loading
-                ? const Center(child: Padding(
+                ? const Center(
+                    child: Padding(
                     padding: EdgeInsets.all(48),
                     child: CircularProgressIndicator(),
                   ))
@@ -191,29 +328,44 @@ class _AdminOrdersPageState extends State<AdminOrdersPage> {
                     : SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: DataTable(
-                          columns: const [
-                            DataColumn(label: Text('Order')),
-                            DataColumn(label: Text('Customer')),
-                            DataColumn(label: Text('Status')),
-                            DataColumn(label: Text('Type')),
-                            DataColumn(label: Text('Branch')),
-                            DataColumn(label: Text('Total')),
-                            DataColumn(label: Text('Actions')),
+                          columns: [
+                            DataColumn(
+                                label: Text(l10n.t('admin_table_order'))),
+                            DataColumn(
+                                label: Text(l10n.t('admin_table_customer'))),
+                            DataColumn(
+                                label: Text(l10n.t('admin_table_status'))),
+                            DataColumn(label: Text(l10n.t('admin_table_type'))),
+                            DataColumn(
+                                label:
+                                    Text(l10n.t('admin_branches_col_branch'))),
+                            DataColumn(
+                                label: Text(l10n.t('admin_table_total'))),
+                            DataColumn(
+                                label:
+                                    Text(l10n.t('admin_products_col_actions'))),
                           ],
                           rows: _orders
                               .map(
                                 (order) => DataRow(
                                   cells: [
                                     DataCell(Text(order.orderNumber)),
-                                    DataCell(Text(order.customer?.fullName ?? 'Guest')),
-                                    DataCell(Text(_statusLabel(order.orderStatus))),
-                                    DataCell(Text(order.orderType)),
-                                    DataCell(Text(order.branch?.name ?? '-')),
-                                    DataCell(Text('SAR ${order.totalAmount.toStringAsFixed(2)}')),
+                                    DataCell(Text(order.customer?.fullName ??
+                                        l10n.t('admin_guest'))),
+                                    DataCell(Text(_statusLabel(
+                                        context, order.orderStatus))),
+                                    DataCell(Text(_orderTypeLabel(
+                                        context, order.orderType))),
+                                    DataCell(Text(order.branch?.name ??
+                                        l10n.t('common_not_available'))),
+                                    DataCell(Text(
+                                        '${l10n.t('currency_label')} ${order.totalAmount.toStringAsFixed(2)}')),
                                     DataCell(
                                       TextButton(
-                                        onPressed: () => _openOrderDetails(order),
-                                        child: const Text('View / Update'),
+                                        onPressed: () =>
+                                            _openOrderDetails(order),
+                                        child: Text(
+                                            l10n.t('admin_orders_view_update')),
                                       ),
                                     ),
                                   ],
@@ -300,7 +452,8 @@ class _OrderDetailsDialogState extends State<_OrderDetailsDialog> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', ''))),
       );
     } finally {
       if (mounted) {
@@ -311,8 +464,9 @@ class _OrderDetailsDialogState extends State<_OrderDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return AlertDialog(
-      title: const Text('Order Details'),
+      title: Text(l10n.t('admin_orders_details_title')),
       content: SizedBox(
         width: 820,
         child: _loading
@@ -326,18 +480,42 @@ class _OrderDetailsDialogState extends State<_OrderDetailsDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_order!.orderNumber, style: Theme.of(context).textTheme.headlineSmall),
+                    Text(_order!.orderNumber,
+                        style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 8),
-                    Text('${_order!.customer?.fullName ?? 'Guest'} • ${_order!.branch?.name ?? 'No branch'}'),
+                    Text(
+                      '${_order!.customer?.fullName ?? l10n.t('admin_guest')} • ${_order!.branch?.name ?? l10n.t('common_not_available')}',
+                    ),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _OrderInfoChip(
+                          label: 'Mode',
+                          value: _orderTypeLabel(context, _order!.orderType),
+                        ),
+                        _OrderInfoChip(
+                          label: 'Payment',
+                          value: _order!.paymentMethod,
+                        ),
+                        _OrderInfoChip(
+                          label: 'Status',
+                          value: _statusLabel(context, _order!.orderStatus),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 18),
                     DropdownButtonFormField<String>(
                       initialValue: _status,
-                      decoration: const InputDecoration(labelText: 'Order Status'),
+                      decoration: InputDecoration(
+                        labelText: l10n.t('admin_orders_status'),
+                      ),
                       items: _AdminOrdersPageState._statuses
                           .map(
                             (status) => DropdownMenuItem<String>(
                               value: status,
-                              child: Text(_statusLabel(status)),
+                              child: Text(_statusLabel(context, status)),
                             ),
                           )
                           .toList(),
@@ -347,18 +525,62 @@ class _OrderDetailsDialogState extends State<_OrderDetailsDialog> {
                     TextFormField(
                       controller: _notesController,
                       maxLines: 3,
-                      decoration: const InputDecoration(labelText: 'Admin Notes'),
+                      decoration: InputDecoration(
+                          labelText: l10n.t('admin_orders_notes')),
                     ),
                     const SizedBox(height: 18),
-                    Text('Items', style: Theme.of(context).textTheme.titleLarge),
+                    if (_order!.address != null) ...[
+                      Text(
+                        'Customer Address',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_order!.address!.label} • ${_order!.address!.city} • ${_order!.address!.neighborhood}',
+                      ),
+                      const SizedBox(height: 4),
+                      Text(_order!.address!.addressLine),
+                      const SizedBox(height: 18),
+                    ],
+                    Text(l10n.t('cart_items'),
+                        style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 12),
                     ..._order!.items.map(
                       (item) => ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(item.productName),
-                        subtitle: Text('Qty ${item.quantity}'),
-                        trailing: Text('SAR ${item.lineTotal.toStringAsFixed(2)}'),
+                        subtitle: Text(l10n.t(
+                            'checkout_qty', {'quantity': '${item.quantity}'})),
+                        trailing: Text(
+                            '${l10n.t('currency_label')} ${item.lineTotal.toStringAsFixed(2)}'),
                       ),
+                    ),
+                    const Divider(height: 32),
+                    Text(
+                      'Order Totals',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    _TotalRow(
+                      label: 'Subtotal',
+                      value:
+                          '${l10n.t('currency_label')} ${_order!.subtotal.toStringAsFixed(2)}',
+                    ),
+                    _TotalRow(
+                      label: 'Delivery Fee',
+                      value:
+                          '${l10n.t('currency_label')} ${_order!.deliveryFee.toStringAsFixed(2)}',
+                    ),
+                    _TotalRow(
+                      label: 'Discount',
+                      value:
+                          '${l10n.t('currency_label')} ${_order!.discountAmount.toStringAsFixed(2)}',
+                    ),
+                    _TotalRow(
+                      label: 'Total',
+                      value:
+                          '${l10n.t('currency_label')} ${_order!.totalAmount.toStringAsFixed(2)}',
+                      emphasize: true,
                     ),
                   ],
                 ),
@@ -367,13 +589,81 @@ class _OrderDetailsDialogState extends State<_OrderDetailsDialog> {
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Close'),
+          child: Text(l10n.t('common_close')),
+        ),
+        OutlinedButton.icon(
+          onPressed: _saving
+              ? null
+              : () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Print summary will be connected next.'),
+                    ),
+                  );
+                },
+          icon: const Icon(Icons.print_outlined),
+          label: const Text('Print Summary'),
         ),
         ElevatedButton(
           onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Saving...' : 'Save'),
+          child:
+              Text(_saving ? l10n.t('common_saving') : l10n.t('common_save')),
         ),
       ],
+    );
+  }
+}
+
+class _OrderInfoChip extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _OrderInfoChip({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.creamSoft,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text('$label: $value'),
+    );
+  }
+}
+
+class _TotalRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  const _TotalRow({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final style = emphasize
+        ? Theme.of(context)
+            .textTheme
+            .titleMedium
+            ?.copyWith(fontWeight: FontWeight.w800)
+        : Theme.of(context).textTheme.bodyMedium;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(child: Text(label, style: style)),
+          Text(value, style: style),
+        ],
+      ),
     );
   }
 }
@@ -397,30 +687,41 @@ class _OrderError extends StatelessWidget {
         ElevatedButton.icon(
           onPressed: onRetry,
           icon: const Icon(Icons.refresh),
-          label: const Text('Retry'),
+          label: Text(context.l10n.t('common_retry')),
         ),
       ],
     );
   }
 }
 
-String _statusLabel(String status) {
+String _statusLabel(BuildContext context, String status) {
   switch (status) {
     case 'pending':
-      return 'Pending';
+      return context.l10n.t('status_pending');
     case 'confirmed':
-      return 'Confirmed';
+      return context.l10n.t('status_confirmed');
     case 'preparing':
-      return 'Preparing';
+      return context.l10n.t('status_preparing');
     case 'out_for_delivery':
-      return 'Out for Delivery';
+      return context.l10n.t('status_out_for_delivery');
     case 'ready_for_pickup':
-      return 'Ready for Pickup';
+      return context.l10n.t('status_ready_for_pickup');
     case 'delivered':
-      return 'Delivered';
+      return context.l10n.t('status_delivered');
     case 'cancelled':
-      return 'Cancelled';
+      return context.l10n.t('status_cancelled');
     default:
       return status;
+  }
+}
+
+String _orderTypeLabel(BuildContext context, String orderType) {
+  switch (orderType) {
+    case 'delivery':
+      return context.l10n.t('order_type_delivery');
+    case 'pickup':
+      return context.l10n.t('order_type_pickup');
+    default:
+      return orderType;
   }
 }

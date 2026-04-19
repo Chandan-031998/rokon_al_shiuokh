@@ -176,3 +176,7 @@ echo ".env" >> .gitignore
 git add .
 git commit -m "Added gitignore"
 git push
+
+
+
+flutter build web --release --base-href /

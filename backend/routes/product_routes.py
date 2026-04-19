@@ -2,33 +2,21 @@ from flask import Blueprint, request
 from sqlalchemy import or_
 from sqlalchemy.exc import SQLAlchemyError
 
+from models.branch import Branch
 from models.product import Product
+from routes.discovery_routes import run_discovery_product_query, serialize_discovery_product, serialize_discovery_products
 from routes.response_utils import empty_array_response
 from services.catalog_seed import ensure_starter_catalog_data
-from services.db_compat import column_exists, load_only_existing
-from utils.api import api_response
+from services.db_compat import load_only_existing
+from services.runtime_cache import runtime_ttl_cache
+from utils.api import error_response, items_response, pagination_payload, parse_pagination_args, success_response
 
 
 product_bp = Blueprint('products', __name__)
 
 
 def _serialize_product(product: Product):
-    has_pack_size = column_exists('products', 'pack_size')
-    price_value = float(product.price or 0)
-    return {
-        'id': product.id,
-        'name': product.name,
-        'name_ar': product.name_ar,
-        'price': price_value,
-        'stock_qty': product.stock_qty,
-        'pack_size': product.pack_size if has_pack_size else None,
-        'image_url': product.resolved_image_url,
-        'category_id': product.category_id,
-        'branch_id': product.branch_id,
-        'is_featured': product.is_featured,
-        'description': product.description,
-        'sku': product.sku,
-    }
+    return serialize_discovery_product(product)
 
 
 @product_bp.get('/')
@@ -36,84 +24,162 @@ def list_products():
     category_id = request.args.get('category_id', type=int)
     branch_id = request.args.get('branch_id', type=int)
     search_query = (request.args.get('q') or '').strip()
-    query = Product.query
-    option = load_only_existing(
-        Product,
-        'products',
-        [
-            'id',
-            'name',
-            'name_ar',
-            'price',
-            'stock_qty',
-            'pack_size',
-            'image_url',
-            'category_id',
-            'branch_id',
-            'is_featured',
-            'is_active',
-            'description',
-            'sku',
-        ],
-    )
-    if option is not None:
-        query = query.options(option)
-    query = query.filter_by(is_active=True)
+    filter_value_ids = _parse_filter_value_ids(request.args.get('filter_value_ids'))
+    page, per_page = parse_pagination_args(default_per_page=24, max_per_page=60)
 
     try:
         ensure_starter_catalog_data()
-        if category_id:
-            query = query.filter_by(category_id=category_id)
-        if branch_id:
-            query = query.filter_by(branch_id=branch_id)
-        if search_query:
-            like_term = f'%{search_query}%'
-            query = query.filter(
-                or_(
-                    Product.name.ilike(like_term),
-                    Product.name_ar.ilike(like_term),
-                    Product.description.ilike(like_term),
-                    Product.sku.ilike(like_term),
-                )
-            )
-
-        rows = query.order_by(Product.id.desc()).all()
+        rows = run_discovery_product_query(
+            category_id=category_id,
+            branch_id=branch_id,
+            search_query=search_query,
+            filter_value_ids=filter_value_ids,
+            hide_from_search=bool(search_query),
+            page=page,
+            per_page=per_page,
+        )
     except SQLAlchemyError:
         return empty_array_response('Products')
 
-    return api_response([_serialize_product(p) for p in rows], cache_seconds=120)
+    return items_response(
+        serialize_discovery_products(rows.items),
+        pagination=pagination_payload(page=page, per_page=per_page, total=rows.total),
+    )
 
 
 @product_bp.get('/featured')
 def featured_products():
+    page, per_page = parse_pagination_args(default_per_page=12, max_per_page=24)
+    cache_key = f'featured-products:page={page}:per_page={per_page}'
+
     try:
-        ensure_starter_catalog_data()
-        query = Product.query
-        option = load_only_existing(
-            Product,
-            'products',
-            [
-                'id',
-                'name',
-                'name_ar',
-                'price',
-                'stock_qty',
-                'pack_size',
-                'image_url',
-                'category_id',
-                'branch_id',
-                'is_featured',
-                'is_active',
-                'description',
-                'sku',
-            ],
-        )
-        if option is not None:
-            query = query.options(option)
-        rows = query.filter_by(is_active=True, is_featured=True).order_by(Product.id.desc()).limit(12).all()
-        if not rows:
-            rows = query.filter_by(is_active=True).order_by(Product.id.desc()).limit(12).all()
+        def build_payload():
+            ensure_starter_catalog_data()
+            query = Product.query
+            option = load_only_existing(
+                Product,
+                'products',
+                [
+                    'id',
+                    'name',
+                    'name_ar',
+                    'price',
+                    'stock_qty',
+                    'pack_size',
+                    'image_url',
+                    'category_id',
+                    'branch_id',
+                    'is_featured',
+                    'is_active',
+                    'description',
+                    'sku',
+                    'sale_price',
+                    'short_description',
+                    'full_description',
+                    'tags',
+                    'search_keywords',
+                    'search_synonyms',
+                    'is_hidden_from_search',
+                ],
+            )
+            if option is not None:
+                query = query.options(option)
+            featured_query = query.filter_by(is_active=True, is_featured=True)
+            total = featured_query.count()
+            rows = (
+                featured_query.order_by(Product.id.desc())
+                .offset((page - 1) * per_page)
+                .limit(per_page)
+                .all()
+            )
+            if not rows:
+                fallback_query = query.filter_by(is_active=True)
+                total = fallback_query.count()
+                rows = (
+                    fallback_query.order_by(Product.id.desc())
+                    .offset((page - 1) * per_page)
+                    .limit(per_page)
+                    .all()
+                )
+            return {
+                'items': serialize_discovery_products(rows),
+                'pagination': pagination_payload(
+                    page=page,
+                    per_page=per_page,
+                    total=total,
+                ),
+            }
+
+        payload = runtime_ttl_cache.get_or_set(cache_key, 120, build_payload)
     except SQLAlchemyError:
         return empty_array_response('Featured products')
 
-    return api_response([_serialize_product(p) for p in rows], cache_seconds=120)
+    return items_response(payload['items'], pagination=payload['pagination'])
+
+
+@product_bp.get('/<int:product_id>')
+def get_product_detail(product_id: int):
+    try:
+        ensure_starter_catalog_data()
+        product = Product.query.filter_by(id=product_id, is_active=True).first()
+        if product is None:
+            return error_response('Product not found.', status=404)
+
+        related_query = Product.query.filter(
+            Product.is_active.is_(True),
+            Product.category_id == product.category_id,
+            Product.id != product.id,
+        )
+        if product.branch_id is not None:
+            related_query = related_query.filter(
+                or_(Product.branch_id == product.branch_id, Product.branch_id.is_(None))
+            )
+
+        related_products = (
+            related_query.order_by(Product.is_featured.desc(), Product.id.desc())
+            .limit(4)
+            .all()
+        )
+        active_branches = Branch.query.filter_by(is_active=True).order_by(Branch.name.asc()).all()
+    except SQLAlchemyError:
+        return error_response('Failed to load product details.', status=500)
+
+    return success_response(
+        product=_serialize_product(product),
+        related_products=[_serialize_product(row) for row in related_products],
+        available_branches=[
+            _serialize_branch_availability(branch, product) for branch in active_branches
+        ],
+    )
+
+
+def _parse_filter_value_ids(raw_value: str | None) -> list[int]:
+    if raw_value is None or not raw_value.strip():
+        return []
+    values = []
+    for chunk in raw_value.split(','):
+        token = chunk.strip()
+        if not token:
+            continue
+        try:
+            values.append(int(token))
+        except ValueError:
+            return []
+    return list(dict.fromkeys(values))
+
+
+def _serialize_branch_availability(branch: Branch, product: Product) -> dict:
+    available_for_branch = product.branch_id is None or product.branch_id == branch.id
+    return {
+        'id': branch.id,
+        'name': branch.name,
+        'city': branch.city,
+        'address': branch.address,
+        'phone': branch.phone,
+        'map_link': branch.map_link,
+        'is_active': bool(branch.is_active),
+        'pickup_available': bool(branch.pickup_available),
+        'delivery_available': bool(branch.delivery_available),
+        'delivery_coverage': branch.delivery_coverage,
+        'product_available': available_for_branch and bool(branch.is_active),
+    }

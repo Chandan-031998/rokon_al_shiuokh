@@ -7,13 +7,23 @@ class ProductModel {
   final String? nameAr;
   final String? imageUrl;
   final String? description;
+  final String? shortDescription;
+  final String? fullDescription;
   final String? sku;
   final int stockQty;
   final String? packSize;
+  final double? salePrice;
+  final String? tags;
+  final String? searchKeywords;
+  final String? searchSynonyms;
   final bool isFeatured;
+  final bool isHiddenFromSearch;
   final bool isActive;
   final String? categoryName;
   final String? branchName;
+  final double averageRating;
+  final int reviewCount;
+  final Map<String, int> ratingDistribution;
 
   const ProductModel({
     required this.id,
@@ -24,13 +34,23 @@ class ProductModel {
     this.nameAr,
     this.imageUrl,
     this.description,
+    this.shortDescription,
+    this.fullDescription,
     this.sku,
     this.stockQty = 0,
     this.packSize,
+    this.salePrice,
+    this.tags,
+    this.searchKeywords,
+    this.searchSynonyms,
     this.isFeatured = false,
+    this.isHiddenFromSearch = false,
     this.isActive = true,
     this.categoryName,
     this.branchName,
+    this.averageRating = 0,
+    this.reviewCount = 0,
+    this.ratingDistribution = const <String, int>{},
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
@@ -43,13 +63,31 @@ class ProductModel {
       nameAr: json['name_ar'] as String?,
       imageUrl: _normalizeImageUrl(json['image_url'] as String?),
       description: json['description'] as String?,
+      shortDescription: (json['short_description'] as String?)?.trim(),
+      fullDescription: (json['full_description'] as String?)?.trim(),
       sku: json['sku'] as String?,
       stockQty: (json['stock_qty'] as num?)?.toInt() ?? 0,
       packSize: (json['pack_size'] as String?)?.trim(),
+      salePrice: (json['sale_price'] as num?)?.toDouble(),
+      tags: (json['tags'] as String?)?.trim(),
+      searchKeywords: (json['search_keywords'] as String?)?.trim(),
+      searchSynonyms: (json['search_synonyms'] as String?)?.trim(),
       isFeatured: json['is_featured'] as bool? ?? false,
+      isHiddenFromSearch: json['is_hidden_from_search'] as bool? ?? false,
       isActive: json['is_active'] as bool? ?? true,
       categoryName: (json['category_name'] as String?)?.trim(),
       branchName: (json['branch_name'] as String?)?.trim(),
+      averageRating: (json['average_rating'] as num?)?.toDouble() ?? 0,
+      reviewCount: (json['review_count'] as num?)?.toInt() ?? 0,
+      ratingDistribution: (json['rating_distribution'] as Map?)
+              ?.cast<String, dynamic>()
+              .map(
+                (key, value) => MapEntry(
+                  key,
+                  (value as num?)?.toInt() ?? 0,
+                ),
+              ) ??
+          const <String, int>{},
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../localization/app_localizations.dart';
 import '../../../../models/order_model.dart';
 import '../../../../models/user_model.dart';
 import '../services/admin_api_service.dart';
@@ -42,7 +43,8 @@ class _AdminCustomersPageState extends State<AdminCustomersPage> {
       _error = null;
     });
     try {
-      final customers = await widget.apiService.fetchCustomers(search: _searchController.text);
+      final customers = await widget.apiService
+          .fetchCustomers(search: _searchController.text);
       if (!mounted) {
         return;
       }
@@ -73,14 +75,16 @@ class _AdminCustomersPageState extends State<AdminCustomersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return AdminPageFrame(
-      title: 'Customers',
-      subtitle: 'Inspect customer profiles, saved addresses, preferred branch, and order history.',
+      title: l10n.t('admin_customers_title'),
+      subtitle: l10n.t('admin_customers_subtitle'),
       actions: [
         OutlinedButton.icon(
           onPressed: _load,
           icon: const Icon(Icons.refresh),
-          label: const Text('Refresh'),
+          label: Text(l10n.t('common_refresh')),
         ),
       ],
       child: Column(
@@ -92,24 +96,35 @@ class _AdminCustomersPageState extends State<AdminCustomersPage> {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: AppColors.border),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Search customers',
-                      prefixIcon: Icon(Icons.search),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 720;
+
+                return Flex(
+                  direction: compact ? Axis.vertical : Axis.horizontal,
+                  crossAxisAlignment: compact
+                      ? CrossAxisAlignment.stretch
+                      : CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: compact ? 0 : 1,
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          labelText: l10n.t('admin_customers_search'),
+                          prefixIcon: const Icon(Icons.search),
+                        ),
+                        onSubmitted: (_) => _load(),
+                      ),
                     ),
-                    onSubmitted: (_) => _load(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _load,
-                  child: const Text('Search'),
-                ),
-              ],
+                    SizedBox(width: compact ? 0 : 12, height: compact ? 12 : 0),
+                    ElevatedButton(
+                      onPressed: _load,
+                      child: Text(l10n.t('admin_customers_search_button')),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 18),
@@ -122,47 +137,87 @@ class _AdminCustomersPageState extends State<AdminCustomersPage> {
               border: Border.all(color: AppColors.border),
             ),
             child: _loading
-                ? const Center(child: Padding(
-                    padding: EdgeInsets.all(48),
-                    child: CircularProgressIndicator(),
-                  ))
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(48),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
                 : _error != null
                     ? _CustomersError(message: _error!, onRetry: _load)
-                    : DataTable(
-                        columns: const [
-                          DataColumn(label: Text('Customer')),
-                          DataColumn(label: Text('Phone')),
-                          DataColumn(label: Text('Orders')),
-                          DataColumn(label: Text('Total Spent')),
-                          DataColumn(label: Text('Actions')),
-                        ],
-                        rows: _customers
-                            .map(
-                              (customer) => DataRow(
-                                cells: [
-                                  DataCell(
-                                    Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(customer.fullName),
-                                        Text(customer.email, style: Theme.of(context).textTheme.bodySmall),
-                                      ],
-                                    ),
-                                  ),
-                                  DataCell(Text(customer.phone ?? '-')),
-                                  DataCell(Text('${customer.orderCount}')),
-                                  DataCell(Text('SAR ${customer.totalSpent.toStringAsFixed(2)}')),
-                                  DataCell(
-                                    TextButton(
-                                      onPressed: () => _openDetail(customer),
-                                      child: const Text('View Details'),
-                                    ),
-                                  ),
-                                ],
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          dataRowMinHeight: 72,
+                          dataRowMaxHeight: 84,
+                          columns: [
+                            DataColumn(
+                              label:
+                                  Text(l10n.t('admin_customers_col_customer')),
+                            ),
+                            DataColumn(
+                              label: Text(l10n.t('admin_customers_col_phone')),
+                            ),
+                            const DataColumn(label: Text('Preferred Branch')),
+                            DataColumn(
+                              label: Text(l10n.t('admin_customers_col_orders')),
+                            ),
+                            DataColumn(
+                              label: Text(
+                                l10n.t('admin_customers_col_total_spent'),
                               ),
-                            )
-                            .toList(),
+                            ),
+                            DataColumn(
+                              label:
+                                  Text(l10n.t('admin_customers_col_actions')),
+                            ),
+                          ],
+                          rows: _customers
+                              .map(
+                                (customer) => DataRow(
+                                  cells: [
+                                    DataCell(
+                                      Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(customer.fullName),
+                                          Text(
+                                            customer.email,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    DataCell(Text(customer.phone ?? '-')),
+                                    DataCell(
+                                      Text(customer.preferredBranch?.name ?? '-'),
+                                    ),
+                                    DataCell(Text('${customer.orderCount}')),
+                                    DataCell(
+                                      Text(
+                                        '${l10n.t('currency_label')} ${customer.totalSpent.toStringAsFixed(2)}',
+                                      ),
+                                    ),
+                                    DataCell(
+                                      TextButton(
+                                        onPressed: () => _openDetail(customer),
+                                        child: Text(
+                                          l10n.t(
+                                            'admin_customers_view_details',
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                              .toList(),
+                        ),
                       ),
           ),
         ],
@@ -198,13 +253,15 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
   Future<void> _load() async {
     try {
       final customer = await widget.apiService.fetchCustomer(widget.customerId);
-      final orders = await widget.apiService.fetchOrders(search: customer.email);
+      final orders =
+          await widget.apiService.fetchOrders(search: customer.email);
       if (!mounted) {
         return;
       }
       setState(() {
         _customer = customer;
-        _orders = orders.where((order) => order.customer?.id == customer.id).toList();
+        _orders =
+            orders.where((order) => order.customer?.id == customer.id).toList();
         _loading = false;
       });
     } catch (_) {
@@ -216,8 +273,10 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return AlertDialog(
-      title: const Text('Customer Details'),
+      title: Text(l10n.t('admin_customers_details_title')),
       content: SizedBox(
         width: 820,
         child: _loading
@@ -231,36 +290,70 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_customer!.fullName, style: Theme.of(context).textTheme.headlineSmall),
+                    Text(_customer!.fullName,
+                        style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 8),
                     Text(_customer!.email),
-                    if ((_customer!.phone ?? '').isNotEmpty) Text(_customer!.phone!),
+                    if ((_customer!.phone ?? '').isNotEmpty)
+                      Text(_customer!.phone!),
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _CustomerStatChip(
+                          label: 'Orders',
+                          value: '${_customer!.orderCount}',
+                        ),
+                        _CustomerStatChip(
+                          label: 'Spent',
+                          value:
+                              '${l10n.t('currency_label')} ${_customer!.totalSpent.toStringAsFixed(2)}',
+                        ),
+                        _CustomerStatChip(
+                          label: 'Status',
+                          value: _customer!.isActive ? 'Active' : 'Inactive',
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 18),
                     if (_customer!.preferredBranch != null) ...[
-                      Text('Preferred Branch', style: Theme.of(context).textTheme.titleLarge),
+                      Text(
+                        l10n.t('account_preferred_branch'),
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
                       const SizedBox(height: 6),
                       Text(_customer!.preferredBranch!.name),
                       const SizedBox(height: 18),
                     ],
-                    Text('Saved Addresses', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      l10n.t('account_saved_addresses'),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 8),
                     ..._customer!.addresses.map(
                       (address) => ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(address.label),
-                        subtitle: Text('${address.city}, ${address.neighborhood}\n${address.addressLine}'),
+                        subtitle: Text(
+                            '${address.city}, ${address.neighborhood}\n${address.addressLine}'),
                         isThreeLine: true,
                       ),
                     ),
                     const SizedBox(height: 18),
-                    Text('Order History', style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      l10n.t('admin_customers_order_history'),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 8),
                     ..._orders.map(
                       (order) => ListTile(
                         contentPadding: EdgeInsets.zero,
                         title: Text(order.orderNumber),
                         subtitle: Text(order.orderStatus),
-                        trailing: Text('SAR ${order.totalAmount.toStringAsFixed(2)}'),
+                        trailing: Text(
+                          '${l10n.t('currency_label')} ${order.totalAmount.toStringAsFixed(2)}',
+                        ),
                       ),
                     ),
                   ],
@@ -270,9 +363,32 @@ class _CustomerDetailDialogState extends State<_CustomerDetailDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
+          child: Text(l10n.t('common_close')),
         ),
       ],
+    );
+  }
+}
+
+class _CustomerStatChip extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _CustomerStatChip({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.creamSoft,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Text('$label: $value'),
     );
   }
 }
@@ -288,15 +404,22 @@ class _CustomersError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(message),
+        Text(
+          l10n.t('admin_data_load_error'),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(l10n.t('admin_customers_error_desc')),
         const SizedBox(height: 12),
         ElevatedButton.icon(
           onPressed: onRetry,
           icon: const Icon(Icons.refresh),
-          label: const Text('Retry'),
+          label: Text(l10n.t('common_retry')),
         ),
       ],
     );

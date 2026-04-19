@@ -13,6 +13,7 @@ from models.cart_item import CartItem
 from models.order import Order
 from models.order_item import OrderItem
 from models.product import Product
+from models.support_setting import SupportSetting
 from utils.api import error_response, items_response, success_response
 from utils.auth import resolve_cart_owner
 from utils.validators import (
@@ -80,6 +81,8 @@ def create_order():
         data = get_json_body()
         order_type = optional_string(data, 'order_type', lower=True) or 'delivery'
         branch_id = integer_field(data, 'branch_id', required=True, minimum=1, label='branch_id')
+        address_id = integer_field(data, 'address_id', minimum=1, label='address_id')
+        payment_method = optional_string(data, 'payment_method', lower=True) or 'cod'
         notes = optional_string(data, 'notes')
         address_payload = data.get('address') or {}
     except ValidationError as exc:
@@ -87,21 +90,29 @@ def create_order():
 
     if order_type not in {'delivery', 'pickup'}:
         return error_response('order_type must be delivery or pickup.', status=400)
-    if order_type == 'delivery' and not isinstance(address_payload, dict):
+    if order_type == 'delivery' and address_id is None and not isinstance(address_payload, dict):
         return error_response('address is required for delivery orders.', status=400)
 
     try:
         branch = Branch.query.filter_by(id=branch_id, is_active=True).first()
         if not branch:
             return error_response('Selected branch not found.', status=404)
+        if order_type == 'delivery' and not branch.delivery_available:
+            return error_response('Delivery is not available for the selected branch.', status=400)
+        if order_type == 'pickup' and not branch.pickup_available:
+            return error_response('Pickup is not available for the selected branch.', status=400)
 
         cart_items = _owner_cart_items(owner)
         if not cart_items:
             return error_response('Cart is empty.', status=400)
 
+        payment_settings = SupportSetting.query.order_by(SupportSetting.id.asc()).first()
+        if not _is_payment_method_enabled(payment_settings, payment_method):
+            return error_response('Selected payment method is unavailable.', status=400)
+
         address = None
         if order_type == 'delivery':
-            address = _create_address(owner, address_payload)
+            address = _resolve_delivery_address(owner, address_id, address_payload)
             if isinstance(address, tuple):
                 return address
 
@@ -112,13 +123,24 @@ def create_order():
             product = Product.query.filter_by(id=cart_item.product_id, is_active=True).first()
             if not product:
                 return error_response('One or more cart products are unavailable.', status=400)
+            if product.branch_id is not None and product.branch_id != branch.id:
+                return error_response(
+                    f'{product.name} is not available for the selected branch.',
+                    status=400,
+                )
+            if cart_item.branch_id is not None and cart_item.branch_id != branch.id:
+                return error_response(
+                    f'{product.name} is assigned to a different branch in the cart.',
+                    status=400,
+                )
 
-            line_total = Decimal(str(product.price)) * cart_item.quantity
+            unit_price = _effective_product_price(product)
+            line_total = unit_price * cart_item.quantity
             subtotal += line_total
             order_items.append(OrderItem(
                 product_id=product.id,
                 product_name=product.name,
-                price=product.price,
+                price=unit_price,
                 quantity=cart_item.quantity,
                 line_total=line_total,
             ))
@@ -133,7 +155,7 @@ def create_order():
             address_id=address.id if address else None,
             order_number=_generate_order_number(),
             order_type=order_type,
-            payment_method='cod',
+            payment_method=payment_method,
             payment_status='pending',
             order_status='pending',
             subtotal=subtotal,
@@ -197,6 +219,19 @@ def _create_address(owner, payload):
     return address
 
 
+def _resolve_delivery_address(owner, address_id: int | None, payload):
+    if address_id is not None:
+        query = Address.query.filter_by(id=address_id)
+        if owner.user_id is not None:
+            address = query.filter_by(user_id=owner.user_id).first()
+        else:
+            address = query.filter_by(guest_session_id=owner.guest_session_id).first()
+        if address is None:
+            return error_response('Selected address not found.', status=404)
+        return address
+    return _create_address(owner, payload)
+
+
 def _generate_order_number():
     timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
     return f'RAS-{timestamp}'
@@ -257,3 +292,22 @@ def _normalized_order_status(status: str | None):
     if status == 'placed':
         return 'pending'
     return status or 'pending'
+
+
+def _effective_product_price(product: Product) -> Decimal:
+    if product.sale_price is not None:
+        sale_price = Decimal(str(product.sale_price))
+        base_price = Decimal(str(product.price or 0))
+        if sale_price > 0 and sale_price < base_price:
+            return sale_price
+    return Decimal(str(product.price or 0))
+
+
+def _is_payment_method_enabled(settings: SupportSetting | None, payment_method: str) -> bool:
+    if payment_method == 'cod':
+        return settings is None or bool(settings.payment_cod_enabled)
+    if payment_method == 'card':
+        return settings is not None and bool(settings.payment_card_enabled)
+    if payment_method == 'bank_transfer':
+        return settings is not None and bool(settings.payment_bank_transfer_enabled)
+    return False

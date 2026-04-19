@@ -10,14 +10,17 @@ import 'package:rokon_al_shiuokh_app/models/branch_model.dart';
 import 'package:rokon_al_shiuokh_app/models/cart_item_model.dart';
 import 'package:rokon_al_shiuokh_app/models/cart_model.dart';
 import 'package:rokon_al_shiuokh_app/models/category_model.dart';
+import 'package:rokon_al_shiuokh_app/models/cms_page_model.dart';
+import 'package:rokon_al_shiuokh_app/models/offer_model.dart';
 import 'package:rokon_al_shiuokh_app/models/product_model.dart';
+import 'package:rokon_al_shiuokh_app/models/support_settings_model.dart';
 import 'package:rokon_al_shiuokh_app/services/api_service.dart';
 
 class _FakeApiService extends ApiService {
   const _FakeApiService();
 
   @override
-  Future<List<CategoryModel>> fetchCategories() async {
+  Future<List<CategoryModel>> fetchCategories({bool forceRefresh = false}) async {
     return const [
       CategoryModel(id: 1, name: 'Coffee', nameAr: 'القهوة', iconKey: 'coffee'),
       CategoryModel(
@@ -26,7 +29,7 @@ class _FakeApiService extends ApiService {
   }
 
   @override
-  Future<List<BranchModel>> fetchBranches() async {
+  Future<List<BranchModel>> fetchBranches({bool forceRefresh = false}) async {
     return const [
       BranchModel(id: 1, name: 'Mahayil Aseer (Main Branch)'),
       BranchModel(id: 2, name: 'Abha Branch'),
@@ -38,6 +41,7 @@ class _FakeApiService extends ApiService {
     int? categoryId,
     int? branchId,
     String? query,
+    List<int> filterValueIds = const <int>[],
     bool featuredOnly = false,
   }) async {
     return const [
@@ -52,6 +56,39 @@ class _FakeApiService extends ApiService {
         sku: 'COF-250G',
       ),
     ];
+  }
+
+  @override
+  Future<List<OfferModel>> fetchOffers() async {
+    return const [
+      OfferModel(
+        id: 1,
+        title: 'Spring Coffee Offer',
+        subtitle: 'Freshly roasted weekly',
+      ),
+    ];
+  }
+
+  @override
+  Future<List<CmsPageModel>> fetchCmsPages({String? section}) async {
+    return const [
+      CmsPageModel(
+        id: 1,
+        slug: 'delivery-block-main',
+        title: 'Delivery Information',
+        section: 'delivery_information',
+        excerpt: 'Live branch coverage appears here.',
+      ),
+    ];
+  }
+
+  @override
+  Future<SupportSettingsModel> fetchSupportSettings() async {
+    return const SupportSettingsModel(
+      contactPhone: '+966500000000',
+      whatsappNumber: '+966500000000',
+      whatsappLabel: 'Chat with Support',
+    );
   }
 
   @override

@@ -15,6 +15,11 @@ from routes.branch_routes import branch_bp
 from routes.admin_routes import admin_bp
 from routes.offer_routes import offer_bp
 from routes.upload_routes import upload_bp
+from routes.content_routes import content_bp
+from routes.review_routes import review_bp
+from routes.wishlist_routes import wishlist_bp
+from routes.discovery_routes import discovery_bp
+from routes.admin_discovery_routes import admin_discovery_bp
 from services.catalog_seed import ensure_starter_catalog_data
 from utils.api import error_response, success_response
 
@@ -63,6 +68,11 @@ def create_app():
     app.register_blueprint(offer_bp, url_prefix='/api/offers')
     app.register_blueprint(upload_bp, url_prefix='/api/uploads')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
+    app.register_blueprint(content_bp, url_prefix='/api/content')
+    app.register_blueprint(review_bp, url_prefix='/api/reviews')
+    app.register_blueprint(wishlist_bp, url_prefix='/api/wishlist')
+    app.register_blueprint(discovery_bp, url_prefix='/api/discovery')
+    app.register_blueprint(admin_discovery_bp, url_prefix='/api/admin/discovery')
 
     @jwt.unauthorized_loader
     def handle_missing_jwt(reason):

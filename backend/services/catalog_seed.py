@@ -49,14 +49,8 @@ _PRODUCT_SEED = [
     },
 ]
 
-_starter_catalog_checked = False
-
 
 def ensure_starter_catalog_data():
-    global _starter_catalog_checked
-    if _starter_catalog_checked:
-        return
-
     tables = {
         "branches": get_table_columns("branches"),
         "categories": get_table_columns("categories"),
@@ -73,7 +67,6 @@ def ensure_starter_catalog_data():
         if changed:
             db.session.commit()
             clear_table_columns_cache()
-        _starter_catalog_checked = True
     except SQLAlchemyError:
         db.session.rollback()
 

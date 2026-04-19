@@ -19,6 +19,7 @@ class AdminDeliveriesPage extends StatefulWidget {
 }
 
 class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
+  final _searchController = TextEditingController();
   String? _status;
   int? _branchId;
   bool _loading = true;
@@ -28,6 +29,7 @@ class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
 
   static const _statuses = <String>[
     'preparing',
+    'ready_for_pickup',
     'out_for_delivery',
     'delivered',
     'cancelled',
@@ -39,6 +41,12 @@ class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -46,7 +54,11 @@ class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
     });
     try {
       final results = await Future.wait([
-        widget.apiService.fetchDeliveries(status: _status, branchId: _branchId),
+        widget.apiService.fetchDeliveries(
+          search: _searchController.text,
+          status: _status,
+          branchId: _branchId,
+        ),
         widget.apiService.fetchBranches(),
       ]);
       if (!mounted) {
@@ -71,9 +83,9 @@ class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
   Future<void> _updateDelivery(OrderModel order) async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => _DeliveryUpdateDialog(
+      builder: (context) => _DeliveryDetailDialog(
         apiService: widget.apiService,
-        order: order,
+        orderId: order.id,
       ),
     );
     if (result == true) {
@@ -140,6 +152,15 @@ class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          TextField(
+                            controller: _searchController,
+                            decoration: const InputDecoration(
+                              labelText: 'Search delivery',
+                              prefixIcon: Icon(Icons.search),
+                            ),
+                            onSubmitted: (_) => _load(),
+                          ),
+                          const SizedBox(height: 14),
                           statusField,
                           const SizedBox(height: 14),
                           branchField,
@@ -156,6 +177,17 @@ class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
                     : Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: const InputDecoration(
+                                labelText: 'Search delivery',
+                                prefixIcon: Icon(Icons.search),
+                              ),
+                              onSubmitted: (_) => _load(),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: statusField,
                           ),
@@ -206,6 +238,7 @@ class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
                             DataColumn(label: Text('Customer')),
                             DataColumn(label: Text('Branch')),
                             DataColumn(label: Text('Status')),
+                            DataColumn(label: Text('Mode')),
                             DataColumn(label: Text('Actions')),
                           ],
                           rows: _deliveries
@@ -247,10 +280,15 @@ class _AdminDeliveriesPageState extends State<AdminDeliveriesPage> {
                                         label: _deliveryStatusLabel(delivery.orderStatus),
                                       ),
                                     ),
+                                    DataCell(Text(
+                                      delivery.orderType == 'pickup'
+                                          ? 'Pickup'
+                                          : 'Delivery',
+                                    )),
                                     DataCell(
                                       OutlinedButton(
                                         onPressed: () => _updateDelivery(delivery),
-                                        child: const Text('Update'),
+                                        child: const Text('View / Update'),
                                       ),
                                     ),
                                   ],
@@ -290,29 +328,30 @@ class _DeliveryStatusChip extends StatelessWidget {
   }
 }
 
-class _DeliveryUpdateDialog extends StatefulWidget {
+class _DeliveryDetailDialog extends StatefulWidget {
   final AdminApiService apiService;
-  final OrderModel order;
+  final int orderId;
 
-  const _DeliveryUpdateDialog({
+  const _DeliveryDetailDialog({
     required this.apiService,
-    required this.order,
+    required this.orderId,
   });
 
   @override
-  State<_DeliveryUpdateDialog> createState() => _DeliveryUpdateDialogState();
+  State<_DeliveryDetailDialog> createState() => _DeliveryDetailDialogState();
 }
 
-class _DeliveryUpdateDialogState extends State<_DeliveryUpdateDialog> {
-  late String _status;
-  late final TextEditingController _notesController;
+class _DeliveryDetailDialogState extends State<_DeliveryDetailDialog> {
+  OrderModel? _order;
+  String? _status;
+  final _notesController = TextEditingController();
+  bool _loading = true;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _status = widget.order.orderStatus;
-    _notesController = TextEditingController(text: widget.order.adminNotes ?? '');
+    _load();
   }
 
   @override
@@ -321,10 +360,32 @@ class _DeliveryUpdateDialogState extends State<_DeliveryUpdateDialog> {
     super.dispose();
   }
 
+  Future<void> _load() async {
+    try {
+      final order = await widget.apiService.fetchDelivery(widget.orderId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _order = order;
+        _status = order.orderStatus;
+        _notesController.text = order.adminNotes ?? '';
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        Navigator.of(context).pop(false);
+      }
+    }
+  }
+
   Future<void> _save() async {
+    if (_status == null || _order == null) {
+      return;
+    }
     setState(() => _saving = true);
     try {
-      await widget.apiService.updateDelivery(widget.order.id, {
+      await widget.apiService.updateDelivery(_order!.id, {
         'order_status': _status,
         'admin_notes': _notesController.text.trim(),
       });
@@ -349,33 +410,91 @@ class _DeliveryUpdateDialogState extends State<_DeliveryUpdateDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.order.orderNumber),
+      title: Text(_order?.orderNumber ?? 'Delivery'),
       content: SizedBox(
-        width: 520,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: _status,
-              decoration: const InputDecoration(labelText: 'Delivery Status'),
-              items: _AdminDeliveriesPageState._statuses
-                  .map(
-                    (status) => DropdownMenuItem<String>(
-                      value: status,
-                      child: Text(_deliveryStatusLabel(status)),
+        width: 720,
+        child: _loading
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(48),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            : SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_order!.customer?.fullName ?? 'Guest customer'} • ${_order!.branch?.name ?? '-'}',
                     ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _status = value ?? _status),
-            ),
-            const SizedBox(height: 14),
-            TextFormField(
-              controller: _notesController,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Admin Notes'),
-            ),
-          ],
-        ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        _DeliveryStatusChip(
+                          label: _deliveryStatusLabel(_order!.orderStatus),
+                        ),
+                        _DeliveryStatusChip(
+                          label: _order!.orderType == 'pickup'
+                              ? 'Pickup'
+                              : 'Delivery',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _status,
+                      decoration: const InputDecoration(labelText: 'Delivery Status'),
+                      items: _AdminDeliveriesPageState._statuses
+                          .map(
+                            (status) => DropdownMenuItem<String>(
+                              value: status,
+                              child: Text(_deliveryStatusLabel(status)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) =>
+                          setState(() => _status = value ?? _status),
+                    ),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _notesController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(labelText: 'Admin Notes'),
+                    ),
+                    const SizedBox(height: 18),
+                    if (_order!.address != null) ...[
+                      Text(
+                        'Delivery Address',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${_order!.address!.label} • ${_order!.address!.city} • ${_order!.address!.neighborhood}',
+                      ),
+                      const SizedBox(height: 4),
+                      Text(_order!.address!.addressLine),
+                      const SizedBox(height: 18),
+                    ],
+                    Text(
+                      'Items',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    ..._order!.items.map(
+                      (item) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(item.productName),
+                        subtitle: Text('Qty ${item.quantity}'),
+                        trailing: Text(
+                          'SAR ${item.lineTotal.toStringAsFixed(2)}',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
       ),
       actions: [
         TextButton(
@@ -421,6 +540,8 @@ String _deliveryStatusLabel(String status) {
   switch (status) {
     case 'preparing':
       return 'Preparing';
+    case 'ready_for_pickup':
+      return 'Ready for Pickup';
     case 'out_for_delivery':
       return 'Out for Delivery';
     case 'delivered':

@@ -89,6 +89,8 @@ class AppTheme {
       colorScheme: base.colorScheme,
       scaffoldBackgroundColor: AppColors.background,
       canvasColor: AppColors.background,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
       splashFactory: InkSparkle.splashFactory,
       textTheme: textTheme,
       dividerColor: AppColors.border,

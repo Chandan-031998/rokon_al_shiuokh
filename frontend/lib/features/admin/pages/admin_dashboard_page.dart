@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../localization/app_localizations.dart';
@@ -36,6 +37,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final isCompact = MediaQuery.sizeOf(context).width < 860;
 
     return AdminPageFrame(
       title: l10n.t('admin_dashboard_title'),
@@ -51,7 +53,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: Padding(
+            return const Center(
+                child: Padding(
               padding: EdgeInsets.all(64),
               child: CircularProgressIndicator(),
             ));
@@ -68,7 +71,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final width = constraints.maxWidth;
-                  final columns = width >= 1180 ? 3 : width >= 760 ? 2 : 1;
+                  final columns = width >= 1180
+                      ? 3
+                      : width >= 760
+                          ? 2
+                          : 1;
                   return GridView.count(
                     crossAxisCount: columns,
                     shrinkWrap: true,
@@ -77,57 +84,151 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     mainAxisSpacing: 16,
                     childAspectRatio: width >= 760 ? 1.7 : 2.8,
                     children: [
-                      _MetricCard(label: l10n.t('admin_metric_products'), value: '${summary.totalProducts}', icon: Icons.inventory_2_outlined),
-                      _MetricCard(label: l10n.t('admin_metric_categories'), value: '${summary.totalCategories}', icon: Icons.category_outlined),
-                      _MetricCard(label: l10n.t('admin_metric_orders'), value: '${summary.totalOrders}', icon: Icons.receipt_long_outlined),
-                      _MetricCard(label: l10n.t('admin_metric_pending_orders'), value: '${summary.pendingOrders}', icon: Icons.timelapse_outlined),
-                      _MetricCard(label: l10n.t('admin_metric_customers'), value: '${summary.totalCustomers}', icon: Icons.people_outline),
-                      _MetricCard(label: l10n.t('admin_metric_branches'), value: '${summary.totalBranches}', icon: Icons.storefront_outlined),
+                      _MetricCard(
+                          label: l10n.t('admin_metric_products'),
+                          value: '${summary.totalProducts}',
+                          icon: Icons.inventory_2_outlined),
+                      _MetricCard(
+                          label: l10n.t('admin_metric_categories'),
+                          value: '${summary.totalCategories}',
+                          icon: Icons.category_outlined),
+                      _MetricCard(
+                          label: l10n.t('admin_metric_orders'),
+                          value: '${summary.totalOrders}',
+                          icon: Icons.receipt_long_outlined),
+                      _MetricCard(
+                          label: l10n.t('admin_metric_pending_orders'),
+                          value: '${summary.pendingOrders}',
+                          icon: Icons.timelapse_outlined),
+                      _MetricCard(
+                          label: l10n.t('admin_metric_customers'),
+                          value: '${summary.totalCustomers}',
+                          icon: Icons.people_outline),
+                      _MetricCard(
+                          label: l10n.t('admin_metric_branches'),
+                          value: '${summary.totalBranches}',
+                          icon: Icons.storefront_outlined),
                     ],
                   );
                 },
               ),
               const SizedBox(height: 20),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _Panel(
-                      title: l10n.t('admin_delivery_status_summary'),
-                      child: Column(
-                        children: summary.deliveryStatusSummary
-                            .map(
-                              (row) => ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(_statusLabel(context, row.status)),
-                                trailing: Text(
-                                  '${row.count}',
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
+              isCompact
+                  ? Column(
+                      children: [
+                        _Panel(
+                          title: l10n.t('admin_delivery_status_summary'),
+                          child: Column(
+                            children: summary.deliveryStatusSummary
+                                .map(
+                                  (row) => ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title:
+                                        Text(_statusLabel(context, row.status)),
+                                    trailing: Text(
+                                      '${row.count}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _Panel(
+                          title: l10n.t('admin_quick_actions'),
+                          child: Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              _QuickActionButton(
+                                label: l10n.t('admin_quick_add_product'),
+                                icon: Icons.add_box_outlined,
+                                onPressed: () => context.go('/admin/products'),
                               ),
-                            )
-                            .toList(),
-                      ),
+                              _QuickActionButton(
+                                label: l10n.t('admin_quick_bulk_import'),
+                                icon: Icons.upload_file_outlined,
+                                onPressed: () => context.go('/admin/import'),
+                              ),
+                              _QuickActionButton(
+                                label: l10n.t('admin_quick_review_orders'),
+                                icon: Icons.visibility_outlined,
+                                onPressed: () => context.go('/admin/orders'),
+                              ),
+                              _QuickActionButton(
+                                label: l10n.t('admin_quick_manage_branches'),
+                                icon: Icons.store_mall_directory_outlined,
+                                onPressed: () => context.go('/admin/branches'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _Panel(
+                            title: l10n.t('admin_delivery_status_summary'),
+                            child: Column(
+                              children: summary.deliveryStatusSummary
+                                  .map(
+                                    (row) => ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                          _statusLabel(context, row.status)),
+                                      trailing: Text(
+                                        '${row.count}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _Panel(
+                            title: l10n.t('admin_quick_actions'),
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                _QuickActionButton(
+                                  label: l10n.t('admin_quick_add_product'),
+                                  icon: Icons.add_box_outlined,
+                                  onPressed: () =>
+                                      context.go('/admin/products'),
+                                ),
+                                _QuickActionButton(
+                                  label: l10n.t('admin_quick_bulk_import'),
+                                  icon: Icons.upload_file_outlined,
+                                  onPressed: () => context.go('/admin/import'),
+                                ),
+                                _QuickActionButton(
+                                  label: l10n.t('admin_quick_review_orders'),
+                                  icon: Icons.visibility_outlined,
+                                  onPressed: () => context.go('/admin/orders'),
+                                ),
+                                _QuickActionButton(
+                                  label: l10n.t('admin_quick_manage_branches'),
+                                  icon: Icons.store_mall_directory_outlined,
+                                  onPressed: () =>
+                                      context.go('/admin/branches'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _Panel(
-                      title: l10n.t('admin_quick_actions'),
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          _QuickActionChip(label: l10n.t('admin_quick_add_product'), icon: Icons.add_box_outlined),
-                          _QuickActionChip(label: l10n.t('admin_quick_bulk_import'), icon: Icons.upload_file_outlined),
-                          _QuickActionChip(label: l10n.t('admin_quick_review_orders'), icon: Icons.visibility_outlined),
-                          _QuickActionChip(label: l10n.t('admin_quick_manage_branches'), icon: Icons.store_mall_directory_outlined),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
               const SizedBox(height: 20),
               _Panel(
                 title: l10n.t('admin_recent_orders'),
@@ -146,10 +247,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           (order) => DataRow(
                             cells: [
                               DataCell(Text(order.orderNumber)),
-                              DataCell(Text(order.customer?.fullName ?? l10n.t('admin_guest'))),
-                              DataCell(Text(_statusLabel(context, order.orderStatus))),
-                              DataCell(Text(order.orderType)),
-                              DataCell(Text('${l10n.t('currency_label')} ${order.totalAmount.toStringAsFixed(2)}')),
+                              DataCell(Text(order.customer?.fullName ??
+                                  l10n.t('admin_guest'))),
+                              DataCell(Text(
+                                  _statusLabel(context, order.orderStatus))),
+                              DataCell(Text(
+                                  _orderTypeLabel(context, order.orderType))),
+                              DataCell(Text(
+                                  '${l10n.t('currency_label')} ${order.totalAmount.toStringAsFixed(2)}')),
                             ],
                           ),
                         )
@@ -214,21 +319,31 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _QuickActionChip extends StatelessWidget {
+class _QuickActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
+  final VoidCallback onPressed;
 
-  const _QuickActionChip({
+  const _QuickActionButton({
     required this.label,
     required this.icon,
+    required this.onPressed,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Chip(
-                      avatar: Icon(icon, size: 18, color: AppColors.brownDeep),
+    return FilledButton.tonalIcon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18, color: AppColors.brownDeep),
       label: Text(label),
-      backgroundColor: AppColors.creamSoft,
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.creamSoft,
+        foregroundColor: AppColors.brownDeep,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
     );
   }
 }
@@ -324,5 +439,16 @@ String _statusLabel(BuildContext context, String status) {
       return context.l10n.t('status_cancelled');
     default:
       return status;
+  }
+}
+
+String _orderTypeLabel(BuildContext context, String orderType) {
+  switch (orderType) {
+    case 'delivery':
+      return context.l10n.t('order_type_delivery');
+    case 'pickup':
+      return context.l10n.t('order_type_pickup');
+    default:
+      return orderType;
   }
 }

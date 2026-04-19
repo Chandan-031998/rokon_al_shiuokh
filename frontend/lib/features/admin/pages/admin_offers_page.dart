@@ -123,6 +123,28 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
     }
   }
 
+  Future<void> _toggleOffer(AdminOfferModel offer, bool active) async {
+    try {
+      await widget.apiService.updateOffer(
+        offer.id,
+        {'is_active': active},
+      );
+      if (!mounted) {
+        return;
+      }
+      await _load();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AdminPageFrame(
@@ -160,6 +182,7 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
                       DataColumn(label: Text('Title')),
                       DataColumn(label: Text('Discount')),
                       DataColumn(label: Text('Linked')),
+                      DataColumn(label: Text('Schedule')),
                       DataColumn(label: Text('Active')),
                       DataColumn(label: Text('Actions')),
                     ],
@@ -180,9 +203,10 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
                               ),
                               DataCell(Text('${offer.discountType ?? 'none'} ${offer.discountValue.toStringAsFixed(2)}')),
                               DataCell(Text(_linkLabel(offer))),
-                              DataCell(Icon(
-                                offer.isActive ? Icons.check_circle : Icons.cancel_outlined,
-                                color: offer.isActive ? Colors.green : AppColors.textMuted,
+                              DataCell(Text(_scheduleLabel(offer))),
+                              DataCell(Switch(
+                                value: offer.isActive,
+                                onChanged: (value) => _toggleOffer(offer, value),
                               )),
                               DataCell(
                                 Wrap(
@@ -220,6 +244,15 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
     }
     return 'General';
   }
+
+  String _scheduleLabel(AdminOfferModel offer) {
+    final start = offer.startsAt?.split('T').first;
+    final end = offer.endsAt?.split('T').first;
+    if (start == null && end == null) {
+      return 'Always on';
+    }
+    return '${start ?? 'Now'} -> ${end ?? 'Open'}';
+  }
 }
 
 class _OfferEditorDialog extends StatefulWidget {
@@ -248,6 +281,8 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
   late final TextEditingController _descriptionController;
   late final TextEditingController _bannerUrlController;
   late final TextEditingController _discountValueController;
+  late final TextEditingController _startsAtController;
+  late final TextEditingController _endsAtController;
   String? _discountType;
   int? _productId;
   int? _categoryId;
@@ -266,6 +301,12 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
     _discountValueController = TextEditingController(
       text: offer == null ? '0' : offer.discountValue.toStringAsFixed(2),
     );
+    _startsAtController = TextEditingController(
+      text: offer?.startsAt?.split('.').first ?? '',
+    );
+    _endsAtController = TextEditingController(
+      text: offer?.endsAt?.split('.').first ?? '',
+    );
     _discountType = offer?.discountType;
     _productId = offer?.productId;
     _categoryId = offer?.categoryId;
@@ -280,6 +321,8 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
     _descriptionController.dispose();
     _bannerUrlController.dispose();
     _discountValueController.dispose();
+    _startsAtController.dispose();
+    _endsAtController.dispose();
     super.dispose();
   }
 
@@ -299,6 +342,12 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
         'product_id': _productId,
         'category_id': _categoryId,
         'branch_id': _branchId,
+        'starts_at': _startsAtController.text.trim().isEmpty
+            ? null
+            : _startsAtController.text.trim(),
+        'ends_at': _endsAtController.text.trim().isEmpty
+            ? null
+            : _endsAtController.text.trim(),
         'is_active': _isActive,
       };
       if (widget.offer == null) {
@@ -355,6 +404,30 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
                 TextFormField(
                   controller: _bannerUrlController,
                   decoration: const InputDecoration(labelText: 'Banner URL'),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _startsAtController,
+                        decoration: const InputDecoration(
+                          labelText: 'Start Date/Time',
+                          hintText: '2026-04-18T10:00:00',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _endsAtController,
+                        decoration: const InputDecoration(
+                          labelText: 'End Date/Time',
+                          hintText: '2026-04-25T23:59:59',
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 Row(

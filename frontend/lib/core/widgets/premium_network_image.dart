@@ -11,6 +11,8 @@ class PremiumNetworkImage extends StatelessWidget {
   final BoxFit fit;
   final IconData fallbackIcon;
   final double fallbackIconSize;
+  final String? semanticLabel;
+  final bool excludeFromSemantics;
 
   const PremiumNetworkImage({
     super.key,
@@ -21,6 +23,8 @@ class PremiumNetworkImage extends StatelessWidget {
     this.fit = BoxFit.cover,
     this.fallbackIcon = Icons.inventory_2_outlined,
     this.fallbackIconSize = 34,
+    this.semanticLabel,
+    this.excludeFromSemantics = false,
   });
 
   @override
@@ -44,13 +48,24 @@ class PremiumNetworkImage extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: resolvedUrl == null
-          ? placeholder
+          ? Semantics(
+              image: !excludeFromSemantics,
+              label: excludeFromSemantics ? null : semanticLabel,
+              child: ExcludeSemantics(
+                excluding: !excludeFromSemantics,
+                child: placeholder,
+              ),
+            )
           : Image.network(
               resolvedUrl,
               fit: fit,
               width: width,
               height: height,
-              filterQuality: FilterQuality.medium,
+              filterQuality: FilterQuality.low,
+              semanticLabel: semanticLabel,
+              excludeFromSemantics: excludeFromSemantics,
+              cacheWidth: width?.round(),
+              cacheHeight: height?.round(),
               loadingBuilder: (context, child, progress) {
                 if (progress == null) {
                   return child;

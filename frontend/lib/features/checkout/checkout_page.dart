@@ -6,6 +6,8 @@ import '../../localization/app_localizations.dart';
 import '../../models/branch_model.dart';
 import '../../models/cart_item_model.dart';
 import '../../models/cart_model.dart';
+import '../../models/support_settings_model.dart';
+import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import 'order_success_page.dart';
 
@@ -34,6 +36,9 @@ class _CheckoutPageState extends State<CheckoutPage> {
   late Future<_CheckoutData> _checkoutFuture;
   CheckoutMode _mode = CheckoutMode.delivery;
   int? _selectedBranchId;
+  int? _selectedSavedAddressId;
+  bool _useNewAddress = false;
+  String _selectedPaymentMethod = 'cod';
   bool _isPlacingOrder = false;
 
   @override
@@ -61,21 +66,114 @@ class _CheckoutPageState extends State<CheckoutPage> {
   }
 
   Future<_CheckoutData> _loadCheckoutData() async {
-    final results = await Future.wait([
+    final hasSession = await widget.apiService.hasAuthSession();
+    final futures = await Future.wait<dynamic>([
       widget.apiService.fetchCart(),
       widget.apiService.fetchBranches(),
+      widget.apiService.fetchSupportSettings(),
+      hasSession
+          ? widget.apiService.fetchProfile()
+          : widget.apiService.getStoredUser(),
     ]);
-    final cart = results[0] as CartModel;
-    final branches = results[1] as List<BranchModel>;
-    final validBranches = <BranchModel>[
-      for (final branch in branches)
-        if (branch.id > 0 && branch.name.trim().isNotEmpty) branch,
-    ];
-    if (_selectedBranchId == null && validBranches.isNotEmpty) {
-      _selectedBranchId =
-          cart.items.firstOrNull?.branchId ?? validBranches.first.id;
+
+    final cart = futures[0] as CartModel;
+    final branches = (futures[1] as List<BranchModel>)
+        .where((branch) => branch.id > 0 && branch.name.trim().isNotEmpty)
+        .toList();
+    final settings = futures[2] as SupportSettingsModel;
+    final user = futures[3] as UserModel?;
+
+    final availableMethods = _paymentMethodsFromSettings(settings);
+    if (availableMethods.isNotEmpty &&
+        !availableMethods.any((method) => method.code == _selectedPaymentMethod)) {
+      _selectedPaymentMethod = availableMethods.first.code;
     }
-    return _CheckoutData(cart: cart, branches: validBranches);
+
+    final preferredBranchId = user?.preferredBranch?.id;
+    final cartBranchId = cart.items.firstOrNull?.branchId;
+    _selectedBranchId = _resolveBranchSelection(
+      branches: branches,
+      branchId: _selectedBranchId ?? preferredBranchId ?? cartBranchId,
+      mode: _mode,
+    );
+
+    final addresses = user?.addresses ?? const <SavedAddressModel>[];
+    if (addresses.isNotEmpty && _selectedSavedAddressId == null) {
+      _selectedSavedAddressId =
+          addresses.firstWhere((address) => address.isDefault, orElse: () => addresses.first).id;
+      _applySavedAddress(addresses.firstWhere(
+        (address) => address.id == _selectedSavedAddressId,
+        orElse: () => addresses.first,
+      ));
+    }
+
+    return _CheckoutData(
+      cart: cart,
+      branches: branches,
+      settings: settings,
+      user: user,
+      paymentMethods: availableMethods,
+    );
+  }
+
+  int? _resolveBranchSelection({
+    required List<BranchModel> branches,
+    required int? branchId,
+    required CheckoutMode mode,
+  }) {
+    final availableBranches = _branchesForMode(branches, mode);
+    if (availableBranches.isEmpty) {
+      return null;
+    }
+    if (branchId != null && availableBranches.any((branch) => branch.id == branchId)) {
+      return branchId;
+    }
+    return availableBranches.first.id;
+  }
+
+  List<BranchModel> _branchesForMode(List<BranchModel> branches, CheckoutMode mode) {
+    return branches.where((branch) {
+      if (!branch.isActive) {
+        return false;
+      }
+      return mode == CheckoutMode.delivery
+          ? branch.deliveryAvailable
+          : branch.pickupAvailable;
+    }).toList();
+  }
+
+  List<_PaymentMethodOption> _paymentMethodsFromSettings(
+    SupportSettingsModel settings,
+  ) {
+    final methods = <_PaymentMethodOption>[];
+    if (settings.paymentCodEnabled) {
+      methods.add(_PaymentMethodOption(
+        code: 'cod',
+        label: (settings.paymentCodLabel ?? '').trim().isNotEmpty
+            ? settings.paymentCodLabel!
+            : 'Cash on Delivery',
+        description: 'Pay when your order is delivered or handed over.',
+      ));
+    }
+    if (settings.paymentCardEnabled) {
+      methods.add(_PaymentMethodOption(
+        code: 'card',
+        label: (settings.paymentCardLabel ?? '').trim().isNotEmpty
+            ? settings.paymentCardLabel!
+            : 'Card Payment',
+        description: 'Use the card payment option enabled by the admin team.',
+      ));
+    }
+    if (settings.paymentBankTransferEnabled) {
+      methods.add(_PaymentMethodOption(
+        code: 'bank_transfer',
+        label: (settings.paymentBankTransferLabel ?? '').trim().isNotEmpty
+            ? settings.paymentBankTransferLabel!
+            : 'Bank Transfer',
+        description: 'Transfer payment using the branch instructions after placing the order.',
+      ));
+    }
+    return methods;
   }
 
   Future<void> _retry() async {
@@ -89,7 +187,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
   }
 
-  Future<void> _placeOrder(CartModel cart, List<BranchModel> branches) async {
+  void _applySavedAddress(SavedAddressModel address) {
+    _labelController.text = address.label;
+    _cityController.text = address.city;
+    _neighborhoodController.text = address.neighborhood;
+    _addressLineController.text = address.addressLine;
+  }
+
+  Future<void> _placeOrder(_CheckoutData data) async {
     if (_isPlacingOrder) {
       return;
     }
@@ -99,7 +204,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
       );
       return;
     }
-    if (_mode == CheckoutMode.delivery && !_formKey.currentState!.validate()) {
+    if (data.paymentMethods.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No payment methods are enabled right now.')),
+      );
+      return;
+    }
+    if (_mode == CheckoutMode.delivery &&
+        (_useNewAddress || _selectedSavedAddressId == null) &&
+        !_formKey.currentState!.validate()) {
       return;
     }
 
@@ -108,8 +221,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
       final order = await widget.apiService.placeOrder(
         orderType: _mode == CheckoutMode.delivery ? 'delivery' : 'pickup',
         branchId: _selectedBranchId!,
+        paymentMethod: _selectedPaymentMethod,
         notes: _notesController.text,
-        address: _mode == CheckoutMode.delivery
+        addressId: _mode == CheckoutMode.delivery && !_useNewAddress
+            ? _selectedSavedAddressId
+            : null,
+        address: _mode == CheckoutMode.delivery &&
+                (_useNewAddress || _selectedSavedAddressId == null)
             ? {
                 'label': _labelController.text.trim(),
                 'city': _cityController.text.trim(),
@@ -132,7 +250,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(error.toString().replaceFirst('Exception: ', ''))),
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
       );
     } finally {
       if (mounted) {
@@ -173,13 +292,20 @@ class _CheckoutPageState extends State<CheckoutPage> {
             );
           }
           if (data.cart.isEmpty) {
-            return Center(
+            return const Center(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(20),
                 child: _EmptyCheckoutCard(),
               ),
             );
           }
+
+          final availableBranches = _branchesForMode(data.branches, _mode);
+          _selectedBranchId = _resolveBranchSelection(
+            branches: data.branches,
+            branchId: _selectedBranchId,
+            mode: _mode,
+          );
 
           return Center(
             child: ConstrainedBox(
@@ -191,20 +317,60 @@ class _CheckoutPageState extends State<CheckoutPage> {
                     formKey: _formKey,
                     mode: _mode,
                     selectedBranchId: _selectedBranchId,
-                    branches: data.branches,
+                    branches: availableBranches,
+                    user: data.user,
+                    useNewAddress: _useNewAddress,
+                    selectedSavedAddressId: _selectedSavedAddressId,
+                    paymentMethods: data.paymentMethods,
+                    selectedPaymentMethod: _selectedPaymentMethod,
+                    settings: data.settings,
                     labelController: _labelController,
                     cityController: _cityController,
                     neighborhoodController: _neighborhoodController,
                     addressLineController: _addressLineController,
                     notesController: _notesController,
-                    onModeChanged: (mode) => setState(() => _mode = mode),
+                    onModeChanged: (mode) {
+                      setState(() {
+                        _mode = mode;
+                        _selectedBranchId = _resolveBranchSelection(
+                          branches: data.branches,
+                          branchId: _selectedBranchId,
+                          mode: mode,
+                        );
+                      });
+                    },
                     onBranchChanged: (value) =>
                         setState(() => _selectedBranchId = value),
+                    onUseNewAddressChanged: (value) =>
+                        setState(() => _useNewAddress = value),
+                    onSavedAddressChanged: (addressId) {
+                      setState(() {
+                        _selectedSavedAddressId = addressId;
+                        final address = data.user?.addresses
+                            .where((item) => item.id == addressId)
+                            .cast<SavedAddressModel?>()
+                            .firstOrNull;
+                        if (address != null) {
+                          _applySavedAddress(address);
+                        }
+                      });
+                    },
+                    onPaymentMethodChanged: (code) {
+                      setState(() => _selectedPaymentMethod = code);
+                    },
                   );
                   final summary = _OrderSummaryCard(
                     cart: data.cart,
                     mode: _mode,
-                    onPlaceOrder: () => _placeOrder(data.cart, data.branches),
+                    selectedBranch: availableBranches
+                        .where((branch) => branch.id == _selectedBranchId)
+                        .cast<BranchModel?>()
+                        .firstOrNull,
+                    selectedPaymentMethod: data.paymentMethods
+                        .where((method) => method.code == _selectedPaymentMethod)
+                        .cast<_PaymentMethodOption?>()
+                        .firstOrNull,
+                    onPlaceOrder: () => _placeOrder(data),
                     isPlacingOrder: _isPlacingOrder,
                   );
 
@@ -213,11 +379,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                            flex: 3, child: SingleChildScrollView(child: form)),
+                          flex: 3,
+                          child: SingleChildScrollView(child: form),
+                        ),
                         const SizedBox(width: 20),
                         Expanded(
-                            flex: 2,
-                            child: SingleChildScrollView(child: summary)),
+                          flex: 2,
+                          child: SingleChildScrollView(child: summary),
+                        ),
                       ],
                     );
                   }
@@ -243,10 +412,28 @@ class _CheckoutPageState extends State<CheckoutPage> {
 class _CheckoutData {
   final CartModel cart;
   final List<BranchModel> branches;
+  final SupportSettingsModel settings;
+  final UserModel? user;
+  final List<_PaymentMethodOption> paymentMethods;
 
   const _CheckoutData({
     required this.cart,
     required this.branches,
+    required this.settings,
+    required this.user,
+    required this.paymentMethods,
+  });
+}
+
+class _PaymentMethodOption {
+  final String code;
+  final String label;
+  final String description;
+
+  const _PaymentMethodOption({
+    required this.code,
+    required this.label,
+    required this.description,
   });
 }
 
@@ -255,6 +442,12 @@ class _CheckoutForm extends StatelessWidget {
   final CheckoutMode mode;
   final int? selectedBranchId;
   final List<BranchModel> branches;
+  final UserModel? user;
+  final bool useNewAddress;
+  final int? selectedSavedAddressId;
+  final List<_PaymentMethodOption> paymentMethods;
+  final String selectedPaymentMethod;
+  final SupportSettingsModel settings;
   final TextEditingController labelController;
   final TextEditingController cityController;
   final TextEditingController neighborhoodController;
@@ -262,12 +455,21 @@ class _CheckoutForm extends StatelessWidget {
   final TextEditingController notesController;
   final ValueChanged<CheckoutMode> onModeChanged;
   final ValueChanged<int?> onBranchChanged;
+  final ValueChanged<bool> onUseNewAddressChanged;
+  final ValueChanged<int?> onSavedAddressChanged;
+  final ValueChanged<String> onPaymentMethodChanged;
 
   const _CheckoutForm({
     required this.formKey,
     required this.mode,
     required this.selectedBranchId,
     required this.branches,
+    required this.user,
+    required this.useNewAddress,
+    required this.selectedSavedAddressId,
+    required this.paymentMethods,
+    required this.selectedPaymentMethod,
+    required this.settings,
     required this.labelController,
     required this.cityController,
     required this.neighborhoodController,
@@ -275,11 +477,15 @@ class _CheckoutForm extends StatelessWidget {
     required this.notesController,
     required this.onModeChanged,
     required this.onBranchChanged,
+    required this.onUseNewAddressChanged,
+    required this.onSavedAddressChanged,
+    required this.onPaymentMethodChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final savedAddresses = user?.addresses ?? const <SavedAddressModel>[];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -315,18 +521,31 @@ class _CheckoutForm extends StatelessWidget {
             const SizedBox(height: 16),
             _SectionCard(
               title: l10n.t('checkout_branch_selection'),
-              child: DropdownButtonFormField<int>(
-                initialValue: selectedBranchId,
-                items: branches
-                    .map(
-                      (branch) => DropdownMenuItem<int>(
-                        value: branch.id,
-                        child: Text(branch.name),
+              child: Column(
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: selectedBranchId,
+                    items: branches
+                        .map(
+                          (branch) => DropdownMenuItem<int>(
+                            value: branch.id,
+                            child: Text(branch.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: onBranchChanged,
+                    decoration: _fieldDecoration(l10n.t('checkout_choose_branch')),
+                  ),
+                  const SizedBox(height: 14),
+                  if (selectedBranchId != null)
+                    _BranchModeCard(
+                      branch: branches.firstWhere(
+                        (branch) => branch.id == selectedBranchId,
+                        orElse: () => branches.first,
                       ),
-                    )
-                    .toList(),
-                onChanged: onBranchChanged,
-                decoration: _fieldDecoration(l10n.t('checkout_choose_branch')),
+                      mode: mode,
+                    ),
+                ],
               ),
             ),
             if (mode == CheckoutMode.delivery) ...[
@@ -334,47 +553,120 @@ class _CheckoutForm extends StatelessWidget {
               _SectionCard(
                 title: l10n.t('checkout_delivery_information'),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextFormField(
-                      controller: labelController,
-                      validator: _requiredValidator(
-                          context, l10n.t('checkout_address_label')),
-                      decoration:
-                          _fieldDecoration(l10n.t('checkout_address_label')),
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: cityController,
-                      validator:
-                          _requiredValidator(context, l10n.t('checkout_city')),
-                      decoration: _fieldDecoration(l10n.t('checkout_city')),
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: neighborhoodController,
-                      validator: _requiredValidator(
-                        context,
-                        l10n.t('checkout_neighborhood'),
+                    if (savedAddresses.isNotEmpty) ...[
+                      SwitchListTile.adaptive(
+                        value: useNewAddress,
+                        onChanged: onUseNewAddressChanged,
+                        title: const Text('Use a new address'),
+                        subtitle: Text(
+                          useNewAddress
+                              ? 'Enter a new delivery address for this order.'
+                              : 'Use one of your saved delivery addresses.',
+                        ),
+                        contentPadding: EdgeInsets.zero,
                       ),
-                      decoration:
-                          _fieldDecoration(l10n.t('checkout_neighborhood')),
-                    ),
-                    const SizedBox(height: 14),
-                    TextFormField(
-                      controller: addressLineController,
-                      validator: _requiredValidator(
-                        context,
-                        l10n.t('checkout_address_line'),
+                      const SizedBox(height: 12),
+                    ],
+                    if (savedAddresses.isNotEmpty && !useNewAddress) ...[
+                      DropdownButtonFormField<int>(
+                        initialValue: selectedSavedAddressId,
+                        items: savedAddresses
+                            .map(
+                              (address) => DropdownMenuItem<int>(
+                                value: address.id,
+                                child: Text(
+                                  '${address.label} · ${address.city}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: onSavedAddressChanged,
+                        decoration: _fieldDecoration('Saved address'),
                       ),
-                      minLines: 3,
-                      maxLines: 4,
-                      decoration:
-                          _fieldDecoration(l10n.t('checkout_address_line')),
-                    ),
+                      const SizedBox(height: 14),
+                      if (selectedSavedAddressId != null)
+                        _SavedAddressPreview(
+                          address: savedAddresses.firstWhere(
+                            (address) => address.id == selectedSavedAddressId,
+                            orElse: () => savedAddresses.first,
+                          ),
+                        ),
+                    ] else ...[
+                      TextFormField(
+                        controller: labelController,
+                        validator:
+                            _requiredValidator(context, l10n.t('checkout_address_label')),
+                        decoration:
+                            _fieldDecoration(l10n.t('checkout_address_label')),
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: cityController,
+                        validator:
+                            _requiredValidator(context, l10n.t('checkout_city')),
+                        decoration: _fieldDecoration(l10n.t('checkout_city')),
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: neighborhoodController,
+                        validator: _requiredValidator(
+                          context,
+                          l10n.t('checkout_neighborhood'),
+                        ),
+                        decoration:
+                            _fieldDecoration(l10n.t('checkout_neighborhood')),
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: addressLineController,
+                        validator: _requiredValidator(
+                          context,
+                          l10n.t('checkout_address_line'),
+                        ),
+                        minLines: 3,
+                        maxLines: 4,
+                        decoration:
+                            _fieldDecoration(l10n.t('checkout_address_line')),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ],
+            const SizedBox(height: 16),
+            _SectionCard(
+              title: 'Payment Method',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (paymentMethods.isEmpty)
+                    const Text(
+                      'No payment methods are enabled in admin settings.',
+                    )
+                  else
+                    for (final method in paymentMethods) ...[
+                      _PaymentMethodTile(
+                        option: method,
+                        selected: selectedPaymentMethod == method.code,
+                        onTap: () => onPaymentMethodChanged(method.code),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  if ((settings.paymentCheckoutNotice ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      settings.paymentCheckoutNotice!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textMuted,
+                            height: 1.5,
+                          ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
             const SizedBox(height: 16),
             _SectionCard(
               title: l10n.t('checkout_delivery_notes'),
@@ -448,39 +740,23 @@ class _HeroCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            top: -18,
-            right: -12,
-            child: Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
-            ),
+          Text(
+            'Checkout',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.white,
+                ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Checkout',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: AppColors.white,
-                    ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                mode == CheckoutMode.delivery
-                    ? 'Complete your delivery details and select the best branch for fulfilment.'
-                    : 'Choose your preferred branch and prepare for a smooth pickup experience.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.creamSoft,
-                    ),
-              ),
-            ],
+          const SizedBox(height: 10),
+          Text(
+            mode == CheckoutMode.delivery
+                ? 'Complete delivery details, choose a branch with delivery coverage, and confirm your payment preference.'
+                : 'Choose a pickup-ready branch, confirm your payment method, and place the order without leaving the customer flow.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.creamSoft,
+                ),
           ),
         ],
       ),
@@ -565,6 +841,155 @@ class _ModeTile extends StatelessWidget {
   }
 }
 
+class _PaymentMethodTile extends StatelessWidget {
+  final _PaymentMethodOption option;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PaymentMethodTile({
+    required this.option,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.creamSoft : AppColors.cream,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? AppColors.goldMuted : AppColors.border,
+            width: selected ? 1.4 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _paymentIcon(option.code),
+              color: AppColors.brownDeep,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    option.label,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(option.description),
+                ],
+              ),
+            ),
+            Icon(
+              selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+              color: selected ? AppColors.goldMuted : AppColors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _paymentIcon(String code) {
+    switch (code) {
+      case 'card':
+        return Icons.credit_card_rounded;
+      case 'bank_transfer':
+        return Icons.account_balance_outlined;
+      case 'cod':
+      default:
+        return Icons.payments_outlined;
+    }
+  }
+}
+
+class _BranchModeCard extends StatelessWidget {
+  final BranchModel branch;
+  final CheckoutMode mode;
+
+  const _BranchModeCard({
+    required this.branch,
+    required this.mode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cream,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            branch.name,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            mode == CheckoutMode.delivery
+                ? (branch.deliveryCoverage?.trim().isNotEmpty == true
+                    ? 'Delivery coverage: ${branch.deliveryCoverage}'
+                    : 'Delivery is available from this branch.')
+                : 'Pickup is available from this branch during branch operating hours.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  height: 1.5,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SavedAddressPreview extends StatelessWidget {
+  final SavedAddressModel address;
+
+  const _SavedAddressPreview({
+    required this.address,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cream,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            address.label,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${address.city}, ${address.neighborhood}\n${address.addressLine}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionCard extends StatelessWidget {
   final String title;
   final Widget child;
@@ -614,12 +1039,16 @@ class _SectionCard extends StatelessWidget {
 class _OrderSummaryCard extends StatelessWidget {
   final CartModel cart;
   final CheckoutMode mode;
+  final BranchModel? selectedBranch;
+  final _PaymentMethodOption? selectedPaymentMethod;
   final VoidCallback onPlaceOrder;
   final bool isPlacingOrder;
 
   const _OrderSummaryCard({
     required this.cart,
     required this.mode,
+    required this.selectedBranch,
+    required this.selectedPaymentMethod,
     required this.onPlaceOrder,
     required this.isPlacingOrder,
   });
@@ -665,7 +1094,22 @@ class _OrderSummaryCard extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          if (selectedBranch != null)
+            _SummaryInfoRow(
+              label: 'Branch',
+              value: selectedBranch!.name,
+            ),
+          if (selectedPaymentMethod != null)
+            _SummaryInfoRow(
+              label: 'Payment',
+              value: selectedPaymentMethod!.label,
+            ),
+          _SummaryInfoRow(
+            label: 'Mode',
+            value: mode == CheckoutMode.delivery ? 'Delivery' : 'Pickup',
+          ),
+          const SizedBox(height: 14),
           for (final item in cart.items) ...[
             _SummaryLine(item: item),
             const SizedBox(height: 12),
@@ -673,7 +1117,9 @@ class _OrderSummaryCard extends StatelessWidget {
           const Divider(color: AppColors.border),
           const SizedBox(height: 12),
           _PriceRow(
-              label: context.l10n.t('checkout_subtotal'), value: cart.subtotal),
+            label: context.l10n.t('checkout_subtotal'),
+            value: cart.subtotal,
+          ),
           const SizedBox(height: 8),
           _PriceRow(
             label: context.l10n.t('checkout_delivery_fee'),
@@ -695,6 +1141,43 @@ class _OrderSummaryCard extends StatelessWidget {
                     ? context.l10n.t('checkout_placing_order')
                     : context.l10n.t('checkout_place_order'),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SummaryInfoRow({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textMuted,
+                ),
+          ),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
             ),
           ),
         ],
@@ -802,6 +1285,8 @@ class _ErrorCard extends StatelessWidget {
 }
 
 class _EmptyCheckoutCard extends StatelessWidget {
+  const _EmptyCheckoutCard();
+
   @override
   Widget build(BuildContext context) {
     return _SectionCard(
@@ -814,6 +1299,6 @@ class _EmptyCheckoutCard extends StatelessWidget {
   }
 }
 
-extension<T> on List<T> {
+extension<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }

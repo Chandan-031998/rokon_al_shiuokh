@@ -18,6 +18,8 @@ class ProductCard extends StatefulWidget {
   final String? imageUrl;
   final VoidCallback? onAddToCart;
   final VoidCallback? onTap;
+  final bool isFavorite;
+  final VoidCallback? onFavoriteToggle;
 
   const ProductCard({
     super.key,
@@ -27,6 +29,8 @@ class ProductCard extends StatefulWidget {
     this.imageUrl,
     this.onAddToCart,
     this.onTap,
+    this.isFavorite = false,
+    this.onFavoriteToggle,
   });
 
   @override
@@ -38,10 +42,13 @@ class _ProductCardState extends State<ProductCard> {
 
   @override
   Widget build(BuildContext context) {
-    final card = InkWell(
-      borderRadius: BorderRadius.circular(30),
-      onTap: widget.onTap,
-      child: Ink(
+    final card = Semantics(
+      button: widget.onTap != null,
+      label: '${widget.name}. ${widget.subtitle}. ${widget.price}.',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(30),
+        onTap: widget.onTap,
+        child: Ink(
         decoration: BoxDecoration(
           gradient: AppColors.surfaceGradient,
           borderRadius: BorderRadius.circular(30),
@@ -52,7 +59,10 @@ class _ProductCardState extends State<ProductCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _ProductVisual(imageUrl: widget.imageUrl),
+              _ProductVisual(
+                imageUrl: widget.imageUrl,
+                semanticLabel: widget.name,
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -69,10 +79,43 @@ class _ProductCardState extends State<ProductCard> {
                             color: AppColors.secondary,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.9,
-                          ),
+                      ),
                     ),
                   ),
                   const Spacer(),
+                  if (widget.onFavoriteToggle != null) ...[
+                    Material(
+                      color: Colors.transparent,
+                      child: Tooltip(
+                        message: widget.isFavorite
+                            ? 'Remove from wishlist'
+                            : 'Save to wishlist',
+                        child: InkWell(
+                          onTap: widget.onFavoriteToggle,
+                          borderRadius: BorderRadius.circular(999),
+                          child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: AppColors.white.withValues(alpha: 0.92),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Icon(
+                            widget.isFavorite
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border_rounded,
+                            size: 18,
+                            color: widget.isFavorite
+                                ? const Color(0xFFB4473B)
+                                : AppColors.brownDeep,
+                          ),
+                        ),
+                      ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   Container(
                     width: 34,
                     height: 34,
@@ -171,6 +214,7 @@ class _ProductCardState extends State<ProductCard> {
           ),
         ),
       ),
+      ),
     );
 
     final animated = AnimatedContainer(
@@ -198,8 +242,12 @@ class _ProductCardState extends State<ProductCard> {
 
 class _ProductVisual extends StatelessWidget {
   final String? imageUrl;
+  final String? semanticLabel;
 
-  const _ProductVisual({this.imageUrl});
+  const _ProductVisual({
+    this.imageUrl,
+    this.semanticLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -231,6 +279,7 @@ class _ProductVisual extends StatelessWidget {
             borderRadius: BorderRadius.circular(22),
             fallbackIcon: Icons.diamond_outlined,
             fallbackIconSize: 22,
+            semanticLabel: semanticLabel,
           ),
         ],
       ),

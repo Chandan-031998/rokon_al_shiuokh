@@ -92,6 +92,10 @@ class OrderSuccessPage extends StatelessWidget {
                 description:
                     '${l10n.t('currency_label')} ${order.totalAmount.toStringAsFixed(0)}',
               ),
+              _SuccessCard(
+                title: 'Payment Method',
+                description: order.paymentMethod.replaceAll('_', ' '),
+              ),
               if (order.address != null)
                 _SuccessCard(
                   title: l10n.t('order_success_delivery_address'),
