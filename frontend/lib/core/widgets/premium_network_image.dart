@@ -7,8 +7,11 @@ class PremiumNetworkImage extends StatelessWidget {
   final String? imageUrl;
   final double? width;
   final double? height;
+  final int? transformWidth;
+  final int? transformQuality;
   final BorderRadius borderRadius;
   final BoxFit fit;
+  final FilterQuality filterQuality;
   final IconData fallbackIcon;
   final double fallbackIconSize;
   final String? semanticLabel;
@@ -20,7 +23,10 @@ class PremiumNetworkImage extends StatelessWidget {
     required this.borderRadius,
     this.width,
     this.height,
+    this.transformWidth,
+    this.transformQuality,
     this.fit = BoxFit.cover,
+    this.filterQuality = FilterQuality.medium,
     this.fallbackIcon = Icons.inventory_2_outlined,
     this.fallbackIconSize = 34,
     this.semanticLabel,
@@ -34,6 +40,9 @@ class PremiumNetworkImage extends StatelessWidget {
       icon: fallbackIcon,
       iconSize: fallbackIconSize,
     );
+    final cacheWidth = width != null && width!.isFinite ? width!.round() : null;
+    final cacheHeight =
+        height != null && height!.isFinite ? height!.round() : null;
 
     return Container(
       width: width,
@@ -56,24 +65,94 @@ class PremiumNetworkImage extends StatelessWidget {
                 child: placeholder,
               ),
             )
-          : Image.network(
-              resolvedUrl,
+          : _NetworkImageWithFallback(
+              primaryUrl: resolvedUrl,
+              fallbackUrl: null,
               fit: fit,
               width: width,
               height: height,
-              filterQuality: FilterQuality.low,
+              cacheWidth: cacheWidth,
+              cacheHeight: cacheHeight,
+              filterQuality: filterQuality,
               semanticLabel: semanticLabel,
               excludeFromSemantics: excludeFromSemantics,
-              cacheWidth: width?.round(),
-              cacheHeight: height?.round(),
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) {
-                  return child;
-                }
-                return _ImageSkeleton(borderRadius: borderRadius);
-              },
-              errorBuilder: (_, __, ___) => placeholder,
+              borderRadius: borderRadius,
+              placeholder: placeholder,
             ),
+    );
+  }
+}
+
+class _NetworkImageWithFallback extends StatelessWidget {
+  final String primaryUrl;
+  final String? fallbackUrl;
+  final BoxFit fit;
+  final double? width;
+  final double? height;
+  final int? cacheWidth;
+  final int? cacheHeight;
+  final FilterQuality filterQuality;
+  final String? semanticLabel;
+  final bool excludeFromSemantics;
+  final BorderRadius borderRadius;
+  final Widget placeholder;
+
+  const _NetworkImageWithFallback({
+    required this.primaryUrl,
+    required this.fallbackUrl,
+    required this.fit,
+    required this.width,
+    required this.height,
+    required this.cacheWidth,
+    required this.cacheHeight,
+    required this.filterQuality,
+    required this.semanticLabel,
+    required this.excludeFromSemantics,
+    required this.borderRadius,
+    required this.placeholder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.network(
+      primaryUrl,
+      fit: fit,
+      width: width,
+      height: height,
+      filterQuality: filterQuality,
+      semanticLabel: semanticLabel,
+      excludeFromSemantics: excludeFromSemantics,
+      cacheWidth: cacheWidth,
+      cacheHeight: cacheHeight,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) {
+          return child;
+        }
+        return _ImageSkeleton(borderRadius: borderRadius);
+      },
+      errorBuilder: (_, __, ___) {
+        if (fallbackUrl == null) {
+          return placeholder;
+        }
+        return Image.network(
+          fallbackUrl!,
+          fit: fit,
+          width: width,
+          height: height,
+          filterQuality: filterQuality,
+          semanticLabel: semanticLabel,
+          excludeFromSemantics: excludeFromSemantics,
+          cacheWidth: cacheWidth,
+          cacheHeight: cacheHeight,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) {
+              return child;
+            }
+            return _ImageSkeleton(borderRadius: borderRadius);
+          },
+          errorBuilder: (_, __, ___) => placeholder,
+        );
+      },
     );
   }
 }

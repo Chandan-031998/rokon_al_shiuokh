@@ -2,9 +2,12 @@ class SupportSettingsModel {
   final String? contactEmail;
   final String? contactPhone;
   final String? contactAddress;
+  final String? contactAddressAr;
   final String? supportHours;
+  final String? supportHoursAr;
   final String? whatsappNumber;
   final String? whatsappLabel;
+  final String? whatsappLabelAr;
   final bool paymentCodEnabled;
   final bool paymentCardEnabled;
   final bool paymentBankTransferEnabled;
@@ -23,9 +26,12 @@ class SupportSettingsModel {
     this.contactEmail,
     this.contactPhone,
     this.contactAddress,
+    this.contactAddressAr,
     this.supportHours,
+    this.supportHoursAr,
     this.whatsappNumber,
     this.whatsappLabel,
+    this.whatsappLabelAr,
     this.paymentCodEnabled = true,
     this.paymentCardEnabled = false,
     this.paymentBankTransferEnabled = false,
@@ -47,9 +53,12 @@ class SupportSettingsModel {
       contactEmail: text('contact_email'),
       contactPhone: text('contact_phone'),
       contactAddress: text('contact_address'),
+      contactAddressAr: text('contact_address_ar'),
       supportHours: text('support_hours'),
+      supportHoursAr: text('support_hours_ar'),
       whatsappNumber: text('whatsapp_number'),
       whatsappLabel: text('whatsapp_label'),
+      whatsappLabelAr: text('whatsapp_label_ar'),
       paymentCodEnabled: json['payment_cod_enabled'] as bool? ?? true,
       paymentCardEnabled: json['payment_card_enabled'] as bool? ?? false,
       paymentBankTransferEnabled:

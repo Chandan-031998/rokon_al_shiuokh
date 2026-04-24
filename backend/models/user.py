@@ -12,6 +12,7 @@ class User(db.Model):
     phone = db.Column(db.String(30), unique=True)
     password_hash = db.Column(db.Text, nullable=False)
     role = db.Column(db.String(20), default='customer')
+    branch = db.Column(db.String(120))
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

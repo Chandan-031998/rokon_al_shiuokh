@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/localized_content.dart';
+import '../../localization/app_locale_controller.dart';
 import '../../localization/app_localizations.dart';
 import '../../models/branch_model.dart';
 import '../../models/cart_item_model.dart';
@@ -15,10 +16,12 @@ enum CheckoutMode { delivery, pickup }
 
 class CheckoutPage extends StatefulWidget {
   final ApiService apiService;
+  final AppLocaleController localeController;
 
   const CheckoutPage({
     super.key,
     required this.apiService,
+    required this.localeController,
   });
 
   @override
@@ -44,7 +47,18 @@ class _CheckoutPageState extends State<CheckoutPage> {
   @override
   void initState() {
     super.initState();
+    widget.localeController.addListener(_retry);
     _checkoutFuture = _loadCheckoutData();
+  }
+
+  @override
+  void didUpdateWidget(covariant CheckoutPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localeController != widget.localeController) {
+      oldWidget.localeController.removeListener(_retry);
+      widget.localeController.addListener(_retry);
+      _retry();
+    }
   }
 
   @override
@@ -57,6 +71,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   @override
   void dispose() {
+    widget.localeController.removeListener(_retry);
     _labelController.dispose();
     _cityController.dispose();
     _neighborhoodController.dispose();
@@ -69,8 +84,13 @@ class _CheckoutPageState extends State<CheckoutPage> {
     final hasSession = await widget.apiService.hasAuthSession();
     final futures = await Future.wait<dynamic>([
       widget.apiService.fetchCart(),
-      widget.apiService.fetchBranches(),
-      widget.apiService.fetchSupportSettings(),
+      widget.apiService.fetchBranches(
+        regionCode: widget.localeController.regionCode,
+      ),
+      widget.apiService.fetchSupportSettings(
+        language: widget.localeController.languageCode,
+        regionCode: widget.localeController.regionCode,
+      ),
       hasSession
           ? widget.apiService.fetchProfile()
           : widget.apiService.getStoredUser(),
@@ -85,7 +105,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final availableMethods = _paymentMethodsFromSettings(settings);
     if (availableMethods.isNotEmpty &&
-        !availableMethods.any((method) => method.code == _selectedPaymentMethod)) {
+        !availableMethods
+            .any((method) => method.code == _selectedPaymentMethod)) {
       _selectedPaymentMethod = availableMethods.first.code;
     }
 
@@ -99,8 +120,10 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     final addresses = user?.addresses ?? const <SavedAddressModel>[];
     if (addresses.isNotEmpty && _selectedSavedAddressId == null) {
-      _selectedSavedAddressId =
-          addresses.firstWhere((address) => address.isDefault, orElse: () => addresses.first).id;
+      _selectedSavedAddressId = addresses
+          .firstWhere((address) => address.isDefault,
+              orElse: () => addresses.first)
+          .id;
       _applySavedAddress(addresses.firstWhere(
         (address) => address.id == _selectedSavedAddressId,
         orElse: () => addresses.first,
@@ -125,13 +148,15 @@ class _CheckoutPageState extends State<CheckoutPage> {
     if (availableBranches.isEmpty) {
       return null;
     }
-    if (branchId != null && availableBranches.any((branch) => branch.id == branchId)) {
+    if (branchId != null &&
+        availableBranches.any((branch) => branch.id == branchId)) {
       return branchId;
     }
     return availableBranches.first.id;
   }
 
-  List<BranchModel> _branchesForMode(List<BranchModel> branches, CheckoutMode mode) {
+  List<BranchModel> _branchesForMode(
+      List<BranchModel> branches, CheckoutMode mode) {
     return branches.where((branch) {
       if (!branch.isActive) {
         return false;
@@ -170,7 +195,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
         label: (settings.paymentBankTransferLabel ?? '').trim().isNotEmpty
             ? settings.paymentBankTransferLabel!
             : 'Bank Transfer',
-        description: 'Transfer payment using the branch instructions after placing the order.',
+        description:
+            'Transfer payment using the branch instructions after placing the order.',
       ));
     }
     return methods;
@@ -206,7 +232,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
     if (data.paymentMethods.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No payment methods are enabled right now.')),
+        const SnackBar(
+            content: Text('No payment methods are enabled right now.')),
       );
       return;
     }
@@ -367,7 +394,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
                         .cast<BranchModel?>()
                         .firstOrNull,
                     selectedPaymentMethod: data.paymentMethods
-                        .where((method) => method.code == _selectedPaymentMethod)
+                        .where(
+                            (method) => method.code == _selectedPaymentMethod)
                         .cast<_PaymentMethodOption?>()
                         .firstOrNull,
                     onPlaceOrder: () => _placeOrder(data),
@@ -534,7 +562,8 @@ class _CheckoutForm extends StatelessWidget {
                         )
                         .toList(),
                     onChanged: onBranchChanged,
-                    decoration: _fieldDecoration(l10n.t('checkout_choose_branch')),
+                    decoration:
+                        _fieldDecoration(l10n.t('checkout_choose_branch')),
                   ),
                   const SizedBox(height: 14),
                   if (selectedBranchId != null)
@@ -596,16 +625,16 @@ class _CheckoutForm extends StatelessWidget {
                     ] else ...[
                       TextFormField(
                         controller: labelController,
-                        validator:
-                            _requiredValidator(context, l10n.t('checkout_address_label')),
+                        validator: _requiredValidator(
+                            context, l10n.t('checkout_address_label')),
                         decoration:
                             _fieldDecoration(l10n.t('checkout_address_label')),
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
                         controller: cityController,
-                        validator:
-                            _requiredValidator(context, l10n.t('checkout_city')),
+                        validator: _requiredValidator(
+                            context, l10n.t('checkout_city')),
                         decoration: _fieldDecoration(l10n.t('checkout_city')),
                       ),
                       const SizedBox(height: 14),
@@ -654,7 +683,9 @@ class _CheckoutForm extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                     ],
-                  if ((settings.paymentCheckoutNotice ?? '').trim().isNotEmpty) ...[
+                  if ((settings.paymentCheckoutNotice ?? '')
+                      .trim()
+                      .isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text(
                       settings.paymentCheckoutNotice!,
@@ -982,7 +1013,8 @@ class _SavedAddressPreview extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '${address.city}, ${address.neighborhood}\n${address.addressLine}',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+            style:
+                Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
           ),
         ],
       ),

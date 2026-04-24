@@ -150,6 +150,7 @@ class _AdminBranchesPageState extends State<AdminBranchesPage> {
                       columns: [
                         DataColumn(
                             label: Text(l10n.t('admin_branches_col_branch'))),
+                        const DataColumn(label: Text('Region')),
                         DataColumn(
                             label: Text(l10n.t('admin_branches_col_phone'))),
                         const DataColumn(label: Text('Map')),
@@ -182,6 +183,11 @@ class _AdminBranchesPageState extends State<AdminBranchesPage> {
                                                 .textTheme
                                                 .bodySmall),
                                     ],
+                                  ),
+                                ),
+                                DataCell(
+                                  Text(
+                                    '${(branch.regionCode ?? 'sa').toUpperCase()} / ${branch.defaultCurrencyCode ?? 'SAR'}',
                                   ),
                                 ),
                                 DataCell(Text(branch.phone ??
@@ -267,9 +273,19 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
   late final TextEditingController _phoneController;
   late final TextEditingController _mapLinkController;
   late final TextEditingController _coverageController;
+  late final TextEditingController _defaultCurrencyController;
+  late final TextEditingController _saCoverageController;
+  late final TextEditingController _aeCoverageController;
+  String _regionCode = 'sa';
   bool _isActive = true;
   bool _pickupAvailable = true;
   bool _deliveryAvailable = true;
+  bool _saVisible = true;
+  bool _saPickupAvailable = true;
+  bool _saDeliveryAvailable = true;
+  bool _aeVisible = true;
+  bool _aePickupAvailable = true;
+  bool _aeDeliveryAvailable = true;
   bool _saving = false;
 
   @override
@@ -283,9 +299,30 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
     _mapLinkController = TextEditingController(text: branch?.mapLink ?? '');
     _coverageController =
         TextEditingController(text: branch?.deliveryCoverage ?? '');
+    _defaultCurrencyController = TextEditingController(
+      text: branch?.defaultCurrencyCode ?? 'SAR',
+    );
+    _saCoverageController = TextEditingController(
+      text: _regionSetting(branch, 'sa')?.deliveryCoverage ??
+          branch?.deliveryCoverage ??
+          '',
+    );
+    _aeCoverageController = TextEditingController(
+      text: _regionSetting(branch, 'ae')?.deliveryCoverage ?? '',
+    );
+    _regionCode = branch?.regionCode ?? 'sa';
     _isActive = branch?.isActive ?? true;
     _pickupAvailable = branch?.pickupAvailable ?? true;
     _deliveryAvailable = branch?.deliveryAvailable ?? true;
+    _saVisible = _regionSetting(branch, 'sa')?.isVisible ?? true;
+    _saPickupAvailable =
+        _regionSetting(branch, 'sa')?.pickupAvailable ?? _pickupAvailable;
+    _saDeliveryAvailable =
+        _regionSetting(branch, 'sa')?.deliveryAvailable ?? _deliveryAvailable;
+    _aeVisible = _regionSetting(branch, 'ae')?.isVisible ?? false;
+    _aePickupAvailable = _regionSetting(branch, 'ae')?.pickupAvailable ?? true;
+    _aeDeliveryAvailable =
+        _regionSetting(branch, 'ae')?.deliveryAvailable ?? true;
   }
 
   @override
@@ -296,6 +333,9 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
     _phoneController.dispose();
     _mapLinkController.dispose();
     _coverageController.dispose();
+    _defaultCurrencyController.dispose();
+    _saCoverageController.dispose();
+    _aeCoverageController.dispose();
     super.dispose();
   }
 
@@ -312,9 +352,29 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
         'phone': _phoneController.text.trim(),
         'map_link': _mapLinkController.text.trim(),
         'delivery_coverage': _coverageController.text.trim(),
+        'region_code': _regionCode,
+        'default_currency_code': _defaultCurrencyController.text.trim(),
         'is_active': _isActive,
         'pickup_available': _pickupAvailable,
         'delivery_available': _deliveryAvailable,
+        'region_settings': [
+          {
+            'region_code': 'sa',
+            'currency_code': 'SAR',
+            'is_visible': _saVisible,
+            'pickup_available': _saPickupAvailable,
+            'delivery_available': _saDeliveryAvailable,
+            'delivery_coverage': _saCoverageController.text.trim(),
+          },
+          {
+            'region_code': 'ae',
+            'currency_code': 'AED',
+            'is_visible': _aeVisible,
+            'pickup_available': _aePickupAvailable,
+            'delivery_available': _aeDeliveryAvailable,
+            'delivery_coverage': _aeCoverageController.text.trim(),
+          },
+        ],
       };
       if (widget.branch == null) {
         await widget.apiService.createBranch(payload);
@@ -364,8 +424,34 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
                 );
                 final phoneField = TextFormField(
                   controller: _phoneController,
-                  decoration:
-                      InputDecoration(labelText: l10n.t('field_phone')),
+                  decoration: InputDecoration(labelText: l10n.t('field_phone')),
+                );
+                final regionField = DropdownButtonFormField<String>(
+                  initialValue: _regionCode,
+                  decoration: const InputDecoration(
+                    labelText: 'Primary Storefront Region',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'sa',
+                      child: Text('Saudi Arabia (SA)'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'ae',
+                      child: Text('United Arab Emirates (AE)'),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() {
+                    _regionCode = value ?? 'sa';
+                    _defaultCurrencyController.text =
+                        _regionCode == 'ae' ? 'AED' : 'SAR';
+                  }),
+                );
+                final currencyField = TextFormField(
+                  controller: _defaultCurrencyController,
+                  decoration: const InputDecoration(
+                    labelText: 'Default Currency Code',
+                  ),
                 );
                 final mapField = TextFormField(
                   controller: _mapLinkController,
@@ -393,6 +479,10 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
                       const SizedBox(height: 12),
                       phoneField,
                       const SizedBox(height: 12),
+                      regionField,
+                      const SizedBox(height: 12),
+                      currencyField,
+                      const SizedBox(height: 12),
                       mapField,
                     ] else
                       Row(
@@ -401,9 +491,19 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
                           const SizedBox(width: 12),
                           Expanded(child: phoneField),
                           const SizedBox(width: 12),
+                          Expanded(child: regionField),
+                        ],
+                      ),
+                    if (!stacked) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(child: currencyField),
+                          const SizedBox(width: 12),
                           Expanded(child: mapField),
                         ],
                       ),
+                    ],
                     const SizedBox(height: 14),
                     TextFormField(
                       controller: _addressController,
@@ -419,6 +519,36 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
                       decoration: InputDecoration(
                         labelText: l10n.t('admin_branches_field_coverage'),
                       ),
+                    ),
+                    const SizedBox(height: 14),
+                    _BranchRegionSettingsCard(
+                      title: 'Saudi Arabia storefront',
+                      currencyCode: 'SAR',
+                      visible: _saVisible,
+                      pickupAvailable: _saPickupAvailable,
+                      deliveryAvailable: _saDeliveryAvailable,
+                      coverageController: _saCoverageController,
+                      onVisibleChanged: (value) =>
+                          setState(() => _saVisible = value),
+                      onPickupChanged: (value) =>
+                          setState(() => _saPickupAvailable = value),
+                      onDeliveryChanged: (value) =>
+                          setState(() => _saDeliveryAvailable = value),
+                    ),
+                    const SizedBox(height: 14),
+                    _BranchRegionSettingsCard(
+                      title: 'UAE storefront',
+                      currencyCode: 'AED',
+                      visible: _aeVisible,
+                      pickupAvailable: _aePickupAvailable,
+                      deliveryAvailable: _aeDeliveryAvailable,
+                      coverageController: _aeCoverageController,
+                      onVisibleChanged: (value) =>
+                          setState(() => _aeVisible = value),
+                      onPickupChanged: (value) =>
+                          setState(() => _aePickupAvailable = value),
+                      onDeliveryChanged: (value) =>
+                          setState(() => _aeDeliveryAvailable = value),
                     ),
                     const SizedBox(height: 14),
                     Container(
@@ -438,7 +568,8 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
                             value: _isActive,
                             contentPadding: EdgeInsets.zero,
                             title: Text(l10n.t('common_active')),
-                            onChanged: (value) => setState(() => _isActive = value),
+                            onChanged: (value) =>
+                                setState(() => _isActive = value),
                           ),
                           SwitchListTile(
                             value: _pickupAvailable,
@@ -475,6 +606,95 @@ class _BranchEditorDialogState extends State<_BranchEditorDialog> {
               Text(_saving ? l10n.t('common_saving') : l10n.t('common_save')),
         ),
       ],
+    );
+  }
+}
+
+BranchRegionSettingModel? _regionSetting(
+    BranchModel? branch, String regionCode) {
+  if (branch == null) {
+    return null;
+  }
+  for (final setting in branch.regionSettings) {
+    if (setting.regionCode == regionCode) {
+      return setting;
+    }
+  }
+  return null;
+}
+
+class _BranchRegionSettingsCard extends StatelessWidget {
+  final String title;
+  final String currencyCode;
+  final bool visible;
+  final bool pickupAvailable;
+  final bool deliveryAvailable;
+  final TextEditingController coverageController;
+  final ValueChanged<bool> onVisibleChanged;
+  final ValueChanged<bool> onPickupChanged;
+  final ValueChanged<bool> onDeliveryChanged;
+
+  const _BranchRegionSettingsCard({
+    required this.title,
+    required this.currencyCode,
+    required this.visible,
+    required this.pickupAvailable,
+    required this.deliveryAvailable,
+    required this.coverageController,
+    required this.onVisibleChanged,
+    required this.onPickupChanged,
+    required this.onDeliveryChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$title ($currencyCode)',
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            value: visible,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Visible on storefront'),
+            onChanged: onVisibleChanged,
+          ),
+          SwitchListTile(
+            value: pickupAvailable,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Pickup available'),
+            onChanged: onPickupChanged,
+          ),
+          SwitchListTile(
+            value: deliveryAvailable,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Delivery available'),
+            onChanged: onDeliveryChanged,
+          ),
+          TextFormField(
+            controller: coverageController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Delivery Coverage',
+              hintText: 'Districts, emirates, cities, or service notes',
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -20,7 +20,8 @@ class _FakeApiService extends ApiService {
   const _FakeApiService();
 
   @override
-  Future<List<CategoryModel>> fetchCategories({bool forceRefresh = false}) async {
+  Future<List<CategoryModel>> fetchCategories(
+      {bool forceRefresh = false, String? language}) async {
     return const [
       CategoryModel(id: 1, name: 'Coffee', nameAr: 'القهوة', iconKey: 'coffee'),
       CategoryModel(
@@ -29,7 +30,8 @@ class _FakeApiService extends ApiService {
   }
 
   @override
-  Future<List<BranchModel>> fetchBranches({bool forceRefresh = false}) async {
+  Future<List<BranchModel>> fetchBranches(
+      {bool forceRefresh = false, String? regionCode}) async {
     return const [
       BranchModel(id: 1, name: 'Mahayil Aseer (Main Branch)'),
       BranchModel(id: 2, name: 'Abha Branch'),
@@ -40,6 +42,8 @@ class _FakeApiService extends ApiService {
   Future<List<ProductModel>> fetchProducts({
     int? categoryId,
     int? branchId,
+    String? language,
+    String? regionCode,
     String? query,
     List<int> filterValueIds = const <int>[],
     bool featuredOnly = false,
@@ -59,7 +63,10 @@ class _FakeApiService extends ApiService {
   }
 
   @override
-  Future<List<OfferModel>> fetchOffers() async {
+  Future<List<OfferModel>> fetchOffers({
+    String? language,
+    String? regionCode,
+  }) async {
     return const [
       OfferModel(
         id: 1,
@@ -70,7 +77,11 @@ class _FakeApiService extends ApiService {
   }
 
   @override
-  Future<List<CmsPageModel>> fetchCmsPages({String? section}) async {
+  Future<List<CmsPageModel>> fetchCmsPages({
+    String? section,
+    String? language,
+    String? regionCode,
+  }) async {
     return const [
       CmsPageModel(
         id: 1,
@@ -83,7 +94,10 @@ class _FakeApiService extends ApiService {
   }
 
   @override
-  Future<SupportSettingsModel> fetchSupportSettings() async {
+  Future<SupportSettingsModel> fetchSupportSettings({
+    String? language,
+    String? regionCode,
+  }) async {
     return const SupportSettingsModel(
       contactPhone: '+966500000000',
       whatsappNumber: '+966500000000',

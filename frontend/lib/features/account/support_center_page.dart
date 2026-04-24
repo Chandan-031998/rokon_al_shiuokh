@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../localization/app_localizations.dart';
+import '../../localization/app_locale_controller.dart';
 import '../../models/support_settings_model.dart';
 import '../../services/api_service.dart';
 import 'faqs_page.dart';
 
 class SupportCenterPage extends StatefulWidget {
   final ApiService apiService;
+  final AppLocaleController localeController;
 
   const SupportCenterPage({
     super.key,
     required this.apiService,
+    required this.localeController,
   });
 
   @override
@@ -24,12 +28,36 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
   @override
   void initState() {
     super.initState();
-    _settingsFuture = widget.apiService.fetchSupportSettings();
+    widget.localeController.addListener(_reload);
+    _settingsFuture = _loadSettings();
+  }
+
+  @override
+  void didUpdateWidget(covariant SupportCenterPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localeController != widget.localeController) {
+      oldWidget.localeController.removeListener(_reload);
+      widget.localeController.addListener(_reload);
+      _reload();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.localeController.removeListener(_reload);
+    super.dispose();
+  }
+
+  Future<SupportSettingsModel> _loadSettings() {
+    return widget.apiService.fetchSupportSettings(
+      language: widget.localeController.languageCode,
+      regionCode: widget.localeController.regionCode,
+    );
   }
 
   void _reload() {
     setState(() {
-      _settingsFuture = widget.apiService.fetchSupportSettings();
+      _settingsFuture = _loadSettings();
     });
   }
 
@@ -39,7 +67,11 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$label copied to clipboard.')),
+      SnackBar(
+        content: Text(
+          context.l10n.t('support_copy_success', {'label': label}),
+        ),
+      ),
     );
   }
 
@@ -50,8 +82,9 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('Support & Contact')),
+      appBar: AppBar(title: Text(l10n.t('support_center_title'))),
       body: FutureBuilder<SupportSettingsModel>(
         future: _settingsFuture,
         builder: (context, snapshot) {
@@ -61,93 +94,123 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
 
           if (snapshot.hasError) {
             return _SupportStateCard(
-              title: 'Unable to load support details',
-              description:
-                  'The latest contact and support information could not be retrieved right now.',
-              actionLabel: 'Retry',
+              title: l10n.t('support_center_error_title'),
+              description: l10n.t('support_center_error_desc'),
+              actionLabel: l10n.t('common_retry'),
               onPressed: _reload,
             );
           }
 
           final settings = snapshot.data ?? const SupportSettingsModel();
           final socialRows = <({String label, String? value})>[
-            (label: 'Facebook', value: settings.facebookUrl),
-            (label: 'Instagram', value: settings.instagramUrl),
-            (label: 'Twitter / X', value: settings.twitterUrl),
+            (
+              label: l10n.t('support_social_facebook'),
+              value: settings.facebookUrl
+            ),
+            (
+              label: l10n.t('support_social_instagram'),
+              value: settings.instagramUrl
+            ),
+            (
+              label: l10n.t('support_social_twitter'),
+              value: settings.twitterUrl
+            ),
             (label: 'TikTok', value: settings.tiktokUrl),
-            (label: 'Snapchat', value: settings.snapchatUrl),
-            (label: 'YouTube', value: settings.youtubeUrl),
+            (
+              label: l10n.t('support_social_snapchat'),
+              value: settings.snapchatUrl
+            ),
+            (
+              label: l10n.t('support_social_youtube'),
+              value: settings.youtubeUrl
+            ),
           ].where((row) => (row.value ?? '').trim().isNotEmpty).toList();
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
               _SupportPanel(
-                title: 'Support channels',
+                title: l10n.t('support_channels_title'),
                 icon: Icons.support_agent_outlined,
                 children: [
                   if ((settings.contactPhone ?? '').trim().isNotEmpty)
                     _ContactRow(
                       icon: Icons.phone_outlined,
-                      label: 'Phone',
+                      label: l10n.t('support_phone_label'),
                       value: settings.contactPhone!,
-                      onCopy: () =>
-                          _copyText('Phone number', settings.contactPhone!),
+                      onCopy: () => _copyText(l10n.t('support_phone_label'),
+                          settings.contactPhone!),
                     ),
                   if ((settings.contactEmail ?? '').trim().isNotEmpty)
                     _ContactRow(
                       icon: Icons.email_outlined,
-                      label: 'Email',
+                      label: l10n.t('support_email_label'),
                       value: settings.contactEmail!,
-                      onCopy: () =>
-                          _copyText('Email', settings.contactEmail!),
+                      onCopy: () => _copyText(
+                        l10n.t('support_email_label'),
+                        settings.contactEmail!,
+                      ),
                     ),
                   if ((settings.whatsappNumber ?? '').trim().isNotEmpty)
                     _ContactRow(
                       icon: Icons.chat_bubble_outline_rounded,
-                      label:
-                          settings.whatsappLabel?.trim().isNotEmpty == true
-                              ? settings.whatsappLabel!
-                              : 'WhatsApp',
+                      label: settings.whatsappLabel?.trim().isNotEmpty == true
+                          ? settings.whatsappLabel!
+                          : l10n.t('support_whatsapp_label'),
                       value: _whatsAppLink(settings.whatsappNumber!),
                       onCopy: () => _copyText(
-                        'WhatsApp link',
+                        l10n.t('support_whatsapp_label'),
                         _whatsAppLink(settings.whatsappNumber!),
                       ),
                     ),
                   if ((settings.supportHours ?? '').trim().isNotEmpty)
                     _ContactRow(
                       icon: Icons.schedule_outlined,
-                      label: 'Support hours',
+                      label: l10n.t('support_hours_label'),
                       value: settings.supportHours!,
                     ),
                   if ((settings.contactAddress ?? '').trim().isNotEmpty)
                     _ContactRow(
                       icon: Icons.location_on_outlined,
-                      label: 'Address',
+                      label: l10n.t('support_address_label'),
                       value: settings.contactAddress!,
-                      onCopy: () =>
-                          _copyText('Address', settings.contactAddress!),
+                      onCopy: () => _copyText(
+                        l10n.t('support_address_label'),
+                        settings.contactAddress!,
+                      ),
+                    ),
+                  if ((settings.contactPhone ?? '').trim().isEmpty &&
+                      (settings.contactEmail ?? '').trim().isEmpty &&
+                      (settings.whatsappNumber ?? '').trim().isEmpty &&
+                      (settings.supportHours ?? '').trim().isEmpty &&
+                      (settings.contactAddress ?? '').trim().isEmpty)
+                    Text(
+                      l10n.t('support_channels_empty'),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textMuted,
+                          ),
                     ),
                 ],
               ),
               const SizedBox(height: 16),
               _SupportPanel(
-                title: 'Self-service help',
+                title: l10n.t('support_self_service_title'),
                 icon: Icons.menu_book_outlined,
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.quiz_outlined),
-                    title: const Text('Frequently asked questions'),
-                    subtitle: const Text(
-                      'Read the latest answers managed from the admin panel.',
-                    ),
-                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                    title: Text(l10n.t('support_faqs_title')),
+                    subtitle: Text(l10n.t('support_faqs_desc')),
+                    trailing:
+                        const Icon(Icons.arrow_forward_ios_rounded, size: 16),
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => FaqsPage(apiService: widget.apiService),
+                          builder: (_) => FaqsPage(
+                            apiService: widget.apiService,
+                            localeController: widget.localeController,
+                          ),
                         ),
                       );
                     },
@@ -157,7 +220,7 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
               if (socialRows.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _SupportPanel(
-                  title: 'Social channels',
+                  title: l10n.t('support_social_title'),
                   icon: Icons.campaign_outlined,
                   children: [
                     for (final row in socialRows)

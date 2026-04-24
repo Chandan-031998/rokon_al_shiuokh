@@ -75,6 +75,54 @@ def is_allowed_cors_origin(origin: str | None, allowed_origins: list[str] | None
     return False
 
 
+def _build_admin_bootstrap_account(index: int):
+    prefix = f'ADMIN_BOOTSTRAP_{index}_'
+    email = os.getenv(f'{prefix}EMAIL', '').strip().lower()
+    password = os.getenv(f'{prefix}PASSWORD', '').strip()
+    full_name = os.getenv(f'{prefix}NAME', '').strip() or 'Rokon Admin'
+    branch = os.getenv(f'{prefix}BRANCH', '').strip()
+
+    if not email and not password and not branch:
+        return None
+    if not email or not password:
+        return None
+
+    return {
+        'email': email,
+        'password': password,
+        'full_name': full_name,
+        'branch': branch or None,
+    }
+
+
+def get_admin_bootstrap_accounts():
+    accounts = []
+
+    for index in (1, 2):
+        account = _build_admin_bootstrap_account(index)
+        if account:
+            accounts.append(account)
+
+    if accounts:
+        return accounts
+
+    email = os.getenv('ADMIN_BOOTSTRAP_EMAIL', '').strip().lower()
+    password = os.getenv('ADMIN_BOOTSTRAP_PASSWORD', '').strip()
+    full_name = os.getenv('ADMIN_BOOTSTRAP_NAME', 'Rokon Admin').strip() or 'Rokon Admin'
+
+    if not email or not password:
+        return []
+
+    return [
+        {
+            'email': email,
+            'password': password,
+            'full_name': full_name,
+            'branch': None,
+        }
+    ]
+
+
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret')
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'jwt-dev-secret')
@@ -93,6 +141,7 @@ class Config:
     SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
     SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')
     SUPABASE_STORAGE_BUCKET = os.getenv('SUPABASE_STORAGE_BUCKET', 'products')
+    ADMIN_BOOTSTRAP_ACCOUNTS = get_admin_bootstrap_accounts()
     ADMIN_BOOTSTRAP_EMAIL = os.getenv('ADMIN_BOOTSTRAP_EMAIL', '')
     ADMIN_BOOTSTRAP_PASSWORD = os.getenv('ADMIN_BOOTSTRAP_PASSWORD', '')
     ADMIN_BOOTSTRAP_NAME = os.getenv('ADMIN_BOOTSTRAP_NAME', 'Rokon Admin')

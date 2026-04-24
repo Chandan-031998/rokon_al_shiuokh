@@ -8,7 +8,9 @@ class Faq(db.Model):
 
     id = db.Column(db.BigInteger, primary_key=True)
     question = db.Column(db.String(240), nullable=False)
+    question_ar = db.Column(db.String(240))
     answer = db.Column(db.Text, nullable=False)
+    answer_ar = db.Column(db.Text)
     sort_order = db.Column(db.Integer, default=0)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

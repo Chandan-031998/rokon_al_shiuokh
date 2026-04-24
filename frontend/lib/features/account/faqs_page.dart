@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/localized_content.dart';
+import '../../localization/app_locale_controller.dart';
 import '../../localization/app_localizations.dart';
 import '../../models/faq_model.dart';
 import '../../services/api_service.dart';
 
 class FaqsPage extends StatefulWidget {
   final ApiService apiService;
+  final AppLocaleController localeController;
 
   const FaqsPage({
     super.key,
     required this.apiService,
+    required this.localeController,
   });
 
   @override
@@ -24,19 +27,43 @@ class _FaqsPageState extends State<FaqsPage> {
   @override
   void initState() {
     super.initState();
-    _faqsFuture = widget.apiService.fetchFaqs();
+    widget.localeController.addListener(_reload);
+    _faqsFuture = _loadFaqs();
+  }
+
+  @override
+  void didUpdateWidget(covariant FaqsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localeController != widget.localeController) {
+      oldWidget.localeController.removeListener(_reload);
+      widget.localeController.addListener(_reload);
+      _reload();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.localeController.removeListener(_reload);
+    super.dispose();
+  }
+
+  Future<List<FaqModel>> _loadFaqs() {
+    return widget.apiService.fetchFaqs(
+      language: widget.localeController.languageCode,
+    );
   }
 
   void _reload() {
     setState(() {
-      _faqsFuture = widget.apiService.fetchFaqs();
+      _faqsFuture = _loadFaqs();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('FAQs')),
+      appBar: AppBar(title: Text(l10n.t('faqs_page_title'))),
       body: FutureBuilder<List<FaqModel>>(
         future: _faqsFuture,
         builder: (context, snapshot) {
@@ -46,10 +73,9 @@ class _FaqsPageState extends State<FaqsPage> {
 
           if (snapshot.hasError) {
             return _FaqStateCard(
-              title: 'Unable to load FAQs',
-              description:
-                  'The latest answers from the admin panel could not be retrieved right now.',
-              actionLabel: 'Retry',
+              title: l10n.t('faqs_error_title'),
+              description: l10n.t('faqs_error_desc'),
+              actionLabel: l10n.t('common_retry'),
               onPressed: _reload,
             );
           }
@@ -57,10 +83,9 @@ class _FaqsPageState extends State<FaqsPage> {
           final faqs = snapshot.data ?? const <FaqModel>[];
           if (faqs.isEmpty) {
             return _FaqStateCard(
-              title: 'No FAQs published yet',
-              description:
-                  'Frequently asked questions will appear here once they are managed in the admin panel.',
-              actionLabel: 'Refresh',
+              title: l10n.t('faqs_empty_title'),
+              description: l10n.t('faqs_empty_desc'),
+              actionLabel: l10n.t('common_refresh'),
               onPressed: _reload,
             );
           }
@@ -80,8 +105,7 @@ class _FaqsPageState extends State<FaqsPage> {
                 child: ExpansionTile(
                   tilePadding:
                       const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                  childrenPadding:
-                      const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                  childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
                   title: Text(
                     faq.localizedQuestion(context.l10n),
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(

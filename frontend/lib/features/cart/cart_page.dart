@@ -135,7 +135,10 @@ class _CartPageState extends State<CartPage> {
   Future<void> _openCheckout() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CheckoutPage(apiService: widget.apiService),
+        builder: (_) => CheckoutPage(
+          apiService: widget.apiService,
+          localeController: widget.localeController,
+        ),
       ),
     );
     if (!mounted) {

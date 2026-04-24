@@ -16,13 +16,21 @@ product_bp = Blueprint('products', __name__)
 
 
 def _serialize_product(product: Product):
-    return serialize_discovery_product(product)
+    language = (request.args.get('language') or 'en').strip().lower()
+    region_code = (request.args.get('region_code') or '').strip().lower() or None
+    return serialize_discovery_product(
+        product,
+        language=language,
+        region_code=region_code,
+    )
 
 
 @product_bp.get('/')
 def list_products():
     category_id = request.args.get('category_id', type=int)
     branch_id = request.args.get('branch_id', type=int)
+    language = (request.args.get('language') or 'en').strip().lower()
+    region_code = (request.args.get('region_code') or '').strip().lower() or None
     search_query = (request.args.get('q') or '').strip()
     filter_value_ids = _parse_filter_value_ids(request.args.get('filter_value_ids'))
     page, per_page = parse_pagination_args(default_per_page=24, max_per_page=60)
@@ -32,6 +40,8 @@ def list_products():
         rows = run_discovery_product_query(
             category_id=category_id,
             branch_id=branch_id,
+            language=language,
+            region_code=region_code,
             search_query=search_query,
             filter_value_ids=filter_value_ids,
             hide_from_search=bool(search_query),
@@ -42,7 +52,11 @@ def list_products():
         return empty_array_response('Products')
 
     return items_response(
-        serialize_discovery_products(rows.items),
+        serialize_discovery_products(
+            rows.items,
+            language=language,
+            region_code=region_code,
+        ),
         pagination=pagination_payload(page=page, per_page=per_page, total=rows.total),
     )
 
@@ -50,7 +64,12 @@ def list_products():
 @product_bp.get('/featured')
 def featured_products():
     page, per_page = parse_pagination_args(default_per_page=12, max_per_page=24)
-    cache_key = f'featured-products:page={page}:per_page={per_page}'
+    language = (request.args.get('language') or 'en').strip().lower()
+    region_code = (request.args.get('region_code') or '').strip().lower() or None
+    cache_key = (
+        f'featured-products:page={page}:per_page={per_page}:'
+        f'language={language}:region={region_code or "all"}'
+    )
 
     try:
         def build_payload():
@@ -101,12 +120,19 @@ def featured_products():
                     .limit(per_page)
                     .all()
                 )
+            visible_rows = [
+                row for row in rows if row.visible_in_region(region_code)
+            ]
             return {
-                'items': serialize_discovery_products(rows),
+                'items': serialize_discovery_products(
+                    visible_rows,
+                    language=language,
+                    region_code=region_code,
+                ),
                 'pagination': pagination_payload(
                     page=page,
                     per_page=per_page,
-                    total=total,
+                    total=len(visible_rows) if rows else total,
                 ),
             }
 
@@ -119,6 +145,8 @@ def featured_products():
 
 @product_bp.get('/<int:product_id>')
 def get_product_detail(product_id: int):
+    language = (request.args.get('language') or 'en').strip().lower()
+    region_code = (request.args.get('region_code') or '').strip().lower() or None
     try:
         ensure_starter_catalog_data()
         product = Product.query.filter_by(id=product_id, is_active=True).first()
@@ -137,7 +165,6 @@ def get_product_detail(product_id: int):
 
         related_products = (
             related_query.order_by(Product.is_featured.desc(), Product.id.desc())
-            .limit(4)
             .all()
         )
         active_branches = Branch.query.filter_by(is_active=True).order_by(Branch.name.asc()).all()
@@ -146,7 +173,15 @@ def get_product_detail(product_id: int):
 
     return success_response(
         product=_serialize_product(product),
-        related_products=[_serialize_product(row) for row in related_products],
+        related_products=[
+            serialize_discovery_product(
+                row,
+                language=language,
+                region_code=region_code,
+            )
+            for row in related_products
+            if row.visible_in_region(region_code)
+        ][:4],
         available_branches=[
             _serialize_branch_availability(branch, product) for branch in active_branches
         ],
@@ -169,10 +204,23 @@ def _parse_filter_value_ids(raw_value: str | None) -> list[int]:
 
 
 def _serialize_branch_availability(branch: Branch, product: Product) -> dict:
-    available_for_branch = product.branch_id is None or product.branch_id == branch.id
+    available_for_branch = product.is_available_for_branch(branch.id)
+    region_settings = [
+        {
+            'region_code': row.region_code,
+            'currency_code': row.currency_code,
+            'is_visible': bool(row.is_visible),
+            'pickup_available': bool(row.pickup_available),
+            'delivery_available': bool(row.delivery_available),
+            'delivery_coverage': row.delivery_coverage,
+        }
+        for row in branch.region_settings
+    ]
     return {
         'id': branch.id,
         'name': branch.name,
+        'region_code': branch.region_code,
+        'default_currency_code': branch.default_currency_code,
         'city': branch.city,
         'address': branch.address,
         'phone': branch.phone,
@@ -181,5 +229,6 @@ def _serialize_branch_availability(branch: Branch, product: Product) -> dict:
         'pickup_available': bool(branch.pickup_available),
         'delivery_available': bool(branch.delivery_available),
         'delivery_coverage': branch.delivery_coverage,
+        'region_settings': region_settings,
         'product_available': available_for_branch and bool(branch.is_active),
     }

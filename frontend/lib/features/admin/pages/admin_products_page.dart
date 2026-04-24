@@ -1,4 +1,3 @@
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
@@ -6,8 +5,10 @@ import '../../../../localization/app_localizations.dart';
 import '../../../../core/widgets/premium_network_image.dart';
 import '../../../../models/branch_model.dart';
 import '../../../../models/category_model.dart';
+import '../../../../models/product_image_model.dart';
 import '../../../../models/product_model.dart';
 import '../services/admin_api_service.dart';
+import '../utils/admin_image_picker.dart';
 import '../widgets/admin_page_frame.dart';
 
 class AdminProductsPage extends StatefulWidget {
@@ -538,21 +539,38 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _nameArController;
   late final TextEditingController _skuController;
-  late final TextEditingController _descriptionController;
   late final TextEditingController _shortDescriptionController;
+  late final TextEditingController _shortDescriptionArController;
   late final TextEditingController _fullDescriptionController;
+  late final TextEditingController _fullDescriptionArController;
   late final TextEditingController _priceController;
   late final TextEditingController _salePriceController;
+  late final TextEditingController _saPriceController;
+  late final TextEditingController _saSalePriceController;
+  late final TextEditingController _aePriceController;
+  late final TextEditingController _aeSalePriceController;
   late final TextEditingController _stockController;
   late final TextEditingController _packSizeController;
   late final TextEditingController _tagsController;
   int? _categoryId;
-  int? _branchId;
   bool _isFeatured = false;
   bool _isActive = true;
+  bool _saVisible = true;
+  bool _aeVisible = true;
+  bool _mahayilAvailable = false;
+  bool _abhaAvailable = false;
   bool _saving = false;
   bool _uploadingImage = false;
-  String? _imageUrl;
+  List<ProductImageModel> _images = const <ProductImageModel>[];
+
+  Future<void> _dismiss([String? result]) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(result);
+  }
 
   @override
   void initState() {
@@ -561,12 +579,16 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     _nameController = TextEditingController(text: product?.name ?? '');
     _nameArController = TextEditingController(text: product?.nameAr ?? '');
     _skuController = TextEditingController(text: product?.sku ?? '');
-    _shortDescriptionController =
-        TextEditingController(text: product?.shortDescription ?? '');
-    _descriptionController =
-        TextEditingController(text: product?.description ?? '');
-    _fullDescriptionController =
-        TextEditingController(text: product?.fullDescription ?? '');
+    final saPricing = _regionPriceFor(product, 'sa');
+    final aePricing = _regionPriceFor(product, 'ae');
+    _shortDescriptionController = TextEditingController(
+        text: product?.shortDescriptionEn ?? product?.shortDescription ?? '');
+    _shortDescriptionArController =
+        TextEditingController(text: product?.shortDescriptionAr ?? '');
+    _fullDescriptionController = TextEditingController(
+        text: product?.fullDescriptionEn ?? product?.fullDescription ?? '');
+    _fullDescriptionArController =
+        TextEditingController(text: product?.fullDescriptionAr ?? '');
     _priceController = TextEditingController(
       text: product == null ? '' : product.price.toStringAsFixed(2),
     );
@@ -575,16 +597,47 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
           ? ''
           : product!.salePrice!.toStringAsFixed(2),
     );
+    _saPriceController = TextEditingController(
+      text: saPricing?.price.toStringAsFixed(2) ??
+          (product == null ? '' : product.price.toStringAsFixed(2)),
+    );
+    _saSalePriceController = TextEditingController(
+      text: saPricing?.salePrice?.toStringAsFixed(2) ??
+          (product?.salePrice == null
+              ? ''
+              : product!.salePrice!.toStringAsFixed(2)),
+    );
+    _aePriceController = TextEditingController(
+      text: aePricing?.price.toStringAsFixed(2) ?? '',
+    );
+    _aeSalePriceController = TextEditingController(
+      text: aePricing?.salePrice?.toStringAsFixed(2) ?? '',
+    );
     _stockController = TextEditingController(text: '${product?.stockQty ?? 0}');
     _packSizeController = TextEditingController(text: product?.packSize ?? '');
     _tagsController = TextEditingController(text: product?.tags ?? '');
     _categoryId = product?.categoryId ??
         (widget.categories.isNotEmpty ? widget.categories.first.id : null);
-    _branchId = product?.branchId ??
-        (widget.branches.isNotEmpty ? widget.branches.first.id : null);
+    final mahayilBranch = _namedBranch(widget.branches, 'mahayil');
+    final abhaBranch = _namedBranch(widget.branches, 'abha');
     _isFeatured = product?.isFeatured ?? false;
     _isActive = product?.isActive ?? true;
-    _imageUrl = product?.imageUrl;
+    _saVisible = saPricing?.isVisible ?? true;
+    _aeVisible = aePricing?.isVisible ?? false;
+    _mahayilAvailable = _branchAvailabilityFor(product, mahayilBranch);
+    _abhaAvailable = _branchAvailabilityFor(product, abhaBranch);
+    _images = product?.images.isNotEmpty == true
+        ? List<ProductImageModel>.from(product!.images)
+        : [
+            if ((product?.imageUrl ?? '').trim().isNotEmpty)
+              ProductImageModel(
+                id: 0,
+                productId: product?.id,
+                imageUrl: product!.imageUrl!,
+                sortOrder: 0,
+                isPrimary: true,
+              ),
+          ];
   }
 
   @override
@@ -593,10 +646,15 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     _nameArController.dispose();
     _skuController.dispose();
     _shortDescriptionController.dispose();
-    _descriptionController.dispose();
+    _shortDescriptionArController.dispose();
     _fullDescriptionController.dispose();
+    _fullDescriptionArController.dispose();
     _priceController.dispose();
     _salePriceController.dispose();
+    _saPriceController.dispose();
+    _saSalePriceController.dispose();
+    _aePriceController.dispose();
+    _aeSalePriceController.dispose();
     _stockController.dispose();
     _packSizeController.dispose();
     _tagsController.dispose();
@@ -607,27 +665,35 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     if (_uploadingImage) {
       return;
     }
-    final file = await FilePicker.platform.pickFiles(
-      withData: true,
-      type: FileType.image,
-    );
-    final selected = file?.files.single;
-    final bytes = selected?.bytes;
-    if (selected == null || bytes == null || bytes.isEmpty) {
+    final selected = await pickAdminImage();
+    if (selected == null) {
       return;
     }
 
     setState(() => _uploadingImage = true);
     try {
       final uploadedUrl = await widget.apiService.uploadProductImage(
-        bytes: bytes,
-        filename: selected.name,
-        contentType: _contentTypeForName(selected.name),
+        bytes: selected.bytes,
+        filename: selected.filename,
+        contentType: selected.contentType,
       );
       if (!mounted) {
         return;
       }
-      setState(() => _imageUrl = uploadedUrl);
+      setState(() {
+        final nextImages = List<ProductImageModel>.from(_images);
+        final hasPrimary = nextImages.any((image) => image.isPrimary);
+        nextImages.add(
+          ProductImageModel(
+            id: 0,
+            productId: widget.product?.id,
+            imageUrl: uploadedUrl,
+            sortOrder: nextImages.length,
+            isPrimary: !hasPrimary,
+          ),
+        );
+        _images = _normalizeImages(nextImages);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Image uploaded successfully.')),
       );
@@ -650,17 +716,27 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+    if (_images.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add at least one product image.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
+      final normalizedImages = _normalizeImages(_images);
       final payload = {
         'name': _nameController.text.trim(),
+        'name_en': _nameController.text.trim(),
         'name_ar': _nameArController.text.trim(),
         'sku': _skuController.text.trim(),
         'short_description': _shortDescriptionController.text.trim(),
-        'description': _descriptionController.text.trim().isNotEmpty
-            ? _descriptionController.text.trim()
-            : _shortDescriptionController.text.trim(),
+        'short_description_en': _shortDescriptionController.text.trim(),
+        'short_description_ar': _shortDescriptionArController.text.trim(),
+        'description': _shortDescriptionController.text.trim(),
         'full_description': _fullDescriptionController.text.trim(),
+        'full_description_en': _fullDescriptionController.text.trim(),
+        'full_description_ar': _fullDescriptionArController.text.trim(),
         'price': double.parse(_priceController.text.trim()),
         'sale_price': _salePriceController.text.trim().isEmpty
             ? null
@@ -668,9 +744,26 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
         'stock_qty': int.parse(_stockController.text.trim()),
         'pack_size': _packSizeController.text.trim(),
         'tags': _tagsController.text.trim(),
-        'image_url': _imageUrl,
+        'image_url': normalizedImages.first.imageUrl,
+        'images': normalizedImages
+            .asMap()
+            .entries
+            .map(
+              (entry) => entry.value.copyWith(sortOrder: entry.key).toJson(),
+            )
+            .toList(),
         'category_id': _categoryId,
-        'branch_id': _branchId,
+        'branch_id': _primaryAvailableBranchId(
+          _namedBranch(widget.branches, 'mahayil'),
+          _namedBranch(widget.branches, 'abha'),
+          mahayilAvailable: _mahayilAvailable,
+          abhaAvailable: _abhaAvailable,
+        ),
+        'branch_availability': _branchAvailabilityPayloads(
+          _namedBranch(widget.branches, 'mahayil'),
+          _namedBranch(widget.branches, 'abha'),
+        ),
+        'region_prices': _regionPricePayloads(),
         'is_featured': _isFeatured,
         'is_active': _isActive,
       };
@@ -680,10 +773,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
       } else {
         await widget.apiService.updateProduct(widget.product!.id, payload);
       }
-      if (!mounted) {
-        return;
-      }
-      Navigator.of(context).pop(widget.product == null ? 'created' : 'updated');
+      await _dismiss(widget.product == null ? 'created' : 'updated');
     } catch (error) {
       if (!mounted) {
         return;
@@ -715,12 +805,12 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
             widget.branches.indexOf(branch))
           branch,
     ];
+    final mahayilBranch = _namedBranch(uniqueBranches, 'mahayil');
+    final abhaBranch = _namedBranch(uniqueBranches, 'abha');
     final safeCategoryId =
         uniqueCategories.any((item) => item.id == _categoryId)
             ? _categoryId
             : null;
-    final safeBranchId =
-        uniqueBranches.any((item) => item.id == _branchId) ? _branchId : null;
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -748,8 +838,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                     ),
                   ),
                   IconButton(
-                    onPressed:
-                        _saving ? null : () => Navigator.of(context).pop(false),
+                    onPressed: _saving ? null : () => _dismiss(),
                     icon: const Icon(Icons.close),
                   ),
                 ],
@@ -797,9 +886,19 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                                 controller: _shortDescriptionController,
                                 maxLines: 2,
                                 decoration: const InputDecoration(
-                                  labelText: 'Short Description',
+                                  labelText: 'Short Description (English)',
                                   hintText:
                                       'Short card summary shown in product listings',
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              TextFormField(
+                                controller: _shortDescriptionArController,
+                                maxLines: 2,
+                                decoration: const InputDecoration(
+                                  labelText: 'Short Description (Arabic)',
+                                  hintText:
+                                      'Localized summary for Arabic storefront views',
                                 ),
                               ),
                               const SizedBox(height: 14),
@@ -814,52 +913,49 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                           );
 
                           final imagePanel = SizedBox(
-                            width: stacked ? double.infinity : 180,
-                            child: Column(
-                              children: [
-                                PremiumNetworkImage(
-                                  imageUrl: _imageUrl,
-                                  height: 160,
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                const SizedBox(height: 12),
-                                OutlinedButton.icon(
-                                  onPressed:
-                                      _uploadingImage ? null : _pickImage,
-                                  icon: _uploadingImage
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
+                            width: stacked ? double.infinity : 280,
+                            child: _ProductImagesEditor(
+                              images: _images,
+                              uploadingImage: _uploadingImage,
+                              onUpload: _pickImage,
+                              onRemove: (index) {
+                                setState(() {
+                                  final nextImages =
+                                      List<ProductImageModel>.from(_images)
+                                        ..removeAt(index);
+                                  _images = _normalizeImages(nextImages);
+                                });
+                              },
+                              onMove: (index, direction) {
+                                final target = index + direction;
+                                if (target < 0 || target >= _images.length) {
+                                  return;
+                                }
+                                setState(() {
+                                  final nextImages =
+                                      List<ProductImageModel>.from(_images);
+                                  final item = nextImages.removeAt(index);
+                                  nextImages.insert(target, item);
+                                  _images = _normalizeImages(nextImages);
+                                });
+                              },
+                              onMakePrimary: (index) {
+                                setState(() {
+                                  final nextImages =
+                                      List<ProductImageModel>.from(_images);
+                                  _images = _normalizeImages(
+                                    nextImages
+                                        .asMap()
+                                        .entries
+                                        .map(
+                                          (entry) => entry.value.copyWith(
+                                            isPrimary: entry.key == index,
+                                          ),
                                         )
-                                      : const Icon(Icons.upload),
-                                  label: Text(
-                                    _uploadingImage
-                                        ? l10n.t('common_uploading')
-                                        : l10n.t('admin_products_upload_image'),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextButton.icon(
-                                  onPressed: _uploadingImage || _imageUrl == null
-                                      ? null
-                                      : () => setState(() => _imageUrl = null),
-                                  icon: const Icon(Icons.delete_outline),
-                                  label: const Text('Remove Image'),
-                                ),
-                                if ((_imageUrl ?? '').trim().isNotEmpty) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _imageUrl!,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
-                                  ),
-                                ],
-                              ],
+                                        .toList(),
+                                  );
+                                });
+                              },
                             ),
                           );
 
@@ -885,22 +981,22 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
-                        controller: _descriptionController,
-                        maxLines: 3,
+                        controller: _fullDescriptionController,
+                        maxLines: 5,
                         decoration: const InputDecoration(
-                          labelText: 'Catalog Summary',
+                          labelText: 'Long Description (English)',
                           hintText:
-                              'Optional summary fallback for older customer views',
+                              'Detailed product description for product details page',
                         ),
                       ),
                       const SizedBox(height: 14),
                       TextFormField(
-                        controller: _fullDescriptionController,
+                        controller: _fullDescriptionArController,
                         maxLines: 5,
                         decoration: const InputDecoration(
-                          labelText: 'Long Description',
+                          labelText: 'Long Description (Arabic)',
                           hintText:
-                              'Detailed product description for product details page',
+                              'Localized long-form product content for Arabic storefront views',
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -992,9 +1088,121 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                         },
                       ),
                       const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceRaised,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Regional Storefront Pricing',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Base price remains available for existing customer pages. Use these storefront rows to prepare SA and AE pricing for the locale switcher.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.textMuted,
+                                    height: 1.5,
+                                  ),
+                            ),
+                            const SizedBox(height: 16),
+                            _RegionPriceEditorCard(
+                              title: 'Saudi Arabia storefront',
+                              currencyCode: 'SAR',
+                              visible: _saVisible,
+                              priceController: _saPriceController,
+                              salePriceController: _saSalePriceController,
+                              onVisibleChanged: (value) =>
+                                  setState(() => _saVisible = value),
+                            ),
+                            const SizedBox(height: 14),
+                            _RegionPriceEditorCard(
+                              title: 'UAE storefront',
+                              currencyCode: 'AED',
+                              visible: _aeVisible,
+                              priceController: _aePriceController,
+                              salePriceController: _aeSalePriceController,
+                              onVisibleChanged: (value) =>
+                                  setState(() => _aeVisible = value),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceRaised,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Branch Availability',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Control where this product can be sold. These toggles manage branch-level availability while preserving the existing admin layout.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.textMuted,
+                                    height: 1.5,
+                                  ),
+                            ),
+                            const SizedBox(height: 14),
+                            if (mahayilBranch != null)
+                              SwitchListTile(
+                                value: _mahayilAvailable,
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text(
+                                  'Available in Mahayil Aseer',
+                                ),
+                                subtitle: Text(mahayilBranch.name),
+                                onChanged: (value) => setState(
+                                  () => _mahayilAvailable = value,
+                                ),
+                              ),
+                            if (abhaBranch != null)
+                              SwitchListTile(
+                                value: _abhaAvailable,
+                                contentPadding: EdgeInsets.zero,
+                                title: const Text('Available in Abha'),
+                                subtitle: Text(abhaBranch.name),
+                                onChanged: (value) => setState(
+                                  () => _abhaAvailable = value,
+                                ),
+                              ),
+                            if (mahayilBranch == null && abhaBranch == null)
+                              const Text(
+                                'Mahayil Aseer and Abha branches are not available yet in branch management.',
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       LayoutBuilder(
                         builder: (context, constraints) {
-                          final stacked = constraints.maxWidth < 540;
                           final categoryField = DropdownButtonFormField<int>(
                             initialValue: safeCategoryId,
                             decoration: InputDecoration(
@@ -1014,41 +1222,7 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
                                 ? l10n.t('admin_validation_category_required')
                                 : null,
                           );
-                          final branchField = DropdownButtonFormField<int>(
-                            initialValue: safeBranchId,
-                            decoration: InputDecoration(
-                              labelText: l10n.t('products_filter_branch'),
-                            ),
-                            items: uniqueBranches
-                                .map(
-                                  (branch) => DropdownMenuItem<int>(
-                                    value: branch.id,
-                                    child: Text(branch.name),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) =>
-                                setState(() => _branchId = value),
-                            validator: (value) => value == null
-                                ? l10n.t('admin_validation_branch_required')
-                                : null,
-                          );
-                          if (stacked) {
-                            return Column(
-                              children: [
-                                categoryField,
-                                const SizedBox(height: 12),
-                                branchField,
-                              ],
-                            );
-                          }
-                          return Row(
-                            children: [
-                              Expanded(child: categoryField),
-                              const SizedBox(width: 12),
-                              Expanded(child: branchField),
-                            ],
-                          );
+                          return categoryField;
                         },
                       ),
                       const SizedBox(height: 14),
@@ -1090,22 +1264,38 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
             const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed:
-                        _saving ? null : () => Navigator.of(context).pop(false),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final stacked = constraints.maxWidth < 440;
+                  final cancelButton = TextButton(
+                    onPressed: _saving ? null : () => _dismiss(),
                     child: Text(l10n.t('common_cancel')),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
+                  );
+                  final saveButton = ElevatedButton(
                     onPressed: _saving ? null : _save,
                     child: Text(
                       _saving ? l10n.t('common_saving') : l10n.t('common_save'),
                     ),
-                  ),
-                ],
+                  );
+                  if (stacked) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        cancelButton,
+                        const SizedBox(height: 10),
+                        saveButton,
+                      ],
+                    );
+                  }
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      cancelButton,
+                      const SizedBox(width: 12),
+                      saveButton,
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -1115,15 +1305,463 @@ class _ProductEditorDialogState extends State<_ProductEditorDialog> {
   }
 }
 
-String _contentTypeForName(String filename) {
-  final lower = filename.toLowerCase();
-  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
-    return 'image/jpeg';
+ProductRegionPriceModel? _regionPriceFor(
+    ProductModel? product, String regionCode) {
+  if (product == null) {
+    return null;
   }
-  if (lower.endsWith('.webp')) {
-    return 'image/webp';
+  for (final row in product.regionPrices) {
+    if (row.regionCode == regionCode) {
+      return row;
+    }
   }
-  return 'image/png';
+  return null;
+}
+
+extension on _ProductEditorDialogState {
+  List<Map<String, dynamic>> _regionPricePayloads() {
+    final rows = <Map<String, dynamic>>[];
+    void addRow({
+      required String regionCode,
+      required String currencyCode,
+      required TextEditingController priceController,
+      required TextEditingController salePriceController,
+      required bool visible,
+    }) {
+      final rawPrice = priceController.text.trim();
+      if (rawPrice.isEmpty) {
+        return;
+      }
+      rows.add({
+        'region_code': regionCode,
+        'currency_code': currencyCode,
+        'price': double.parse(rawPrice),
+        'sale_price': salePriceController.text.trim().isEmpty
+            ? null
+            : double.parse(salePriceController.text.trim()),
+        'is_visible': visible,
+      });
+    }
+
+    addRow(
+      regionCode: 'sa',
+      currencyCode: 'SAR',
+      priceController: _saPriceController,
+      salePriceController: _saSalePriceController,
+      visible: _saVisible,
+    );
+    addRow(
+      regionCode: 'ae',
+      currencyCode: 'AED',
+      priceController: _aePriceController,
+      salePriceController: _aeSalePriceController,
+      visible: _aeVisible,
+    );
+    return rows;
+  }
+
+  List<Map<String, dynamic>> _branchAvailabilityPayloads(
+    BranchModel? mahayilBranch,
+    BranchModel? abhaBranch,
+  ) {
+    final rows = <Map<String, dynamic>>[];
+    void addBranch(BranchModel? branch, bool isAvailable) {
+      if (branch == null) {
+        return;
+      }
+      rows.add({
+        'branch_id': branch.id,
+        'is_available': isAvailable,
+      });
+    }
+
+    addBranch(mahayilBranch, _mahayilAvailable);
+    addBranch(abhaBranch, _abhaAvailable);
+    return rows;
+  }
+}
+
+BranchModel? _namedBranch(List<BranchModel> branches, String token) {
+  final normalizedToken = token.trim().toLowerCase();
+  for (final branch in branches) {
+    final haystack = '${branch.name} ${branch.city ?? ''}'.toLowerCase();
+    if (haystack.contains(normalizedToken)) {
+      return branch;
+    }
+  }
+  return null;
+}
+
+bool _branchAvailabilityFor(ProductModel? product, BranchModel? branch) {
+  if (product == null || branch == null) {
+    return false;
+  }
+  for (final row in product.branchAvailability) {
+    if (row.branchId == branch.id) {
+      return row.isAvailable;
+    }
+  }
+  if (product.availableBranchIds.contains(branch.id)) {
+    return true;
+  }
+  return product.branchId == branch.id;
+}
+
+int? _primaryAvailableBranchId(
+  BranchModel? mahayilBranch,
+  BranchModel? abhaBranch, {
+  required bool mahayilAvailable,
+  required bool abhaAvailable,
+}) {
+  if (mahayilBranch != null && mahayilAvailable) {
+    return mahayilBranch.id;
+  }
+  if (abhaBranch != null && abhaAvailable) {
+    return abhaBranch.id;
+  }
+  return null;
+}
+
+List<ProductImageModel> _normalizeImages(List<ProductImageModel> images) {
+  if (images.isEmpty) {
+    return const <ProductImageModel>[];
+  }
+  final primaryIndex = images.indexWhere((image) => image.isPrimary);
+  return images.asMap().entries.map((entry) {
+    final index = entry.key;
+    final image = entry.value;
+    return image.copyWith(
+      sortOrder: index,
+      isPrimary: primaryIndex == -1 ? index == 0 : index == primaryIndex,
+    );
+  }).toList();
+}
+
+class _RegionPriceEditorCard extends StatelessWidget {
+  final String title;
+  final String currencyCode;
+  final bool visible;
+  final TextEditingController priceController;
+  final TextEditingController salePriceController;
+  final ValueChanged<bool> onVisibleChanged;
+
+  const _RegionPriceEditorCard({
+    required this.title,
+    required this.currencyCode,
+    required this.visible,
+    required this.priceController,
+    required this.salePriceController,
+    required this.onVisibleChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$title ($currencyCode)',
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            value: visible,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Visible on storefront'),
+            onChanged: onVisibleChanged,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: priceController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration:
+                      const InputDecoration(labelText: 'Regional Price'),
+                  validator: (value) {
+                    final raw = (value ?? '').trim();
+                    if (raw.isEmpty) {
+                      return null;
+                    }
+                    final parsed = double.tryParse(raw);
+                    if (parsed == null || parsed < 0) {
+                      return 'Enter a valid regional price.';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: salePriceController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration:
+                      const InputDecoration(labelText: 'Regional Sale Price'),
+                  validator: (value) {
+                    final raw = (value ?? '').trim();
+                    if (raw.isEmpty) {
+                      return null;
+                    }
+                    final parsed = double.tryParse(raw);
+                    final basePrice =
+                        double.tryParse(priceController.text.trim());
+                    if (parsed == null || parsed < 0) {
+                      return 'Enter a valid sale price.';
+                    }
+                    if (basePrice != null && parsed > basePrice) {
+                      return 'Sale price must not exceed regional price.';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductImagesEditor extends StatelessWidget {
+  final List<ProductImageModel> images;
+  final bool uploadingImage;
+  final VoidCallback onUpload;
+  final ValueChanged<int> onRemove;
+  final void Function(int index, int direction) onMove;
+  final ValueChanged<int> onMakePrimary;
+
+  const _ProductImagesEditor({
+    required this.images,
+    required this.uploadingImage,
+    required this.onUpload,
+    required this.onRemove,
+    required this.onMove,
+    required this.onMakePrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Product Images',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Upload multiple images, choose the cover image, and control the gallery order customers will see.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.textMuted,
+                  height: 1.5,
+                ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: uploadingImage ? null : onUpload,
+              icon: uploadingImage
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(uploadingImage ? 'Uploading...' : 'Upload Image'),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (images.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Text(
+                'No product images uploaded yet. The first uploaded image becomes the cover image automatically.',
+              ),
+            )
+          else
+            Column(
+              children: [
+                for (final entry in images.asMap().entries) ...[
+                  _ProductImageRow(
+                    image: entry.value,
+                    index: entry.key,
+                    onRemove: () => onRemove(entry.key),
+                    onMoveUp:
+                        entry.key > 0 ? () => onMove(entry.key, -1) : null,
+                    onMoveDown: entry.key < images.length - 1
+                        ? () => onMove(entry.key, 1)
+                        : null,
+                    onMakePrimary: entry.value.isPrimary
+                        ? null
+                        : () => onMakePrimary(entry.key),
+                  ),
+                  if (entry.key < images.length - 1) const SizedBox(height: 12),
+                ],
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductImageRow extends StatelessWidget {
+  final ProductImageModel image;
+  final int index;
+  final VoidCallback onRemove;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
+  final VoidCallback? onMakePrimary;
+
+  const _ProductImageRow({
+    required this.image,
+    required this.index,
+    required this.onRemove,
+    required this.onMoveUp,
+    required this.onMoveDown,
+    required this.onMakePrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: PremiumNetworkImage(
+              imageUrl: image.imageUrl,
+              width: 84,
+              height: 84,
+              borderRadius: BorderRadius.circular(16),
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Image ${index + 1}',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (image.isPrimary)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.accentLightGold,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Cover',
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppColors.primaryDark,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  image.imageUrl,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                        height: 1.4,
+                      ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    TextButton.icon(
+                      onPressed: onMakePrimary,
+                      icon: const Icon(Icons.star_outline_rounded, size: 18),
+                      label:
+                          Text(image.isPrimary ? 'Primary image' : 'Set cover'),
+                    ),
+                    TextButton.icon(
+                      onPressed: onMoveUp,
+                      icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+                      label: const Text('Up'),
+                    ),
+                    TextButton.icon(
+                      onPressed: onMoveDown,
+                      icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+                      label: const Text('Down'),
+                    ),
+                    TextButton.icon(
+                      onPressed: onRemove,
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      label: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _InlineError extends StatelessWidget {

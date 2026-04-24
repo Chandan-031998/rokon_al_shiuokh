@@ -5,17 +5,20 @@ import '../../core/constants/app_colors.dart';
 import '../../core/extensions/localized_content.dart';
 import '../../core/widgets/premium_network_image.dart';
 import '../../models/cms_page_model.dart';
+import '../../localization/app_locale_controller.dart';
 import '../../localization/app_localizations.dart';
 import '../../services/api_service.dart';
 
 class CmsPageViewer extends StatefulWidget {
   final ApiService apiService;
+  final AppLocaleController localeController;
   final String slug;
   final String fallbackTitle;
 
   const CmsPageViewer({
     super.key,
     required this.apiService,
+    required this.localeController,
     required this.slug,
     required this.fallbackTitle,
   });
@@ -30,12 +33,37 @@ class _CmsPageViewerState extends State<CmsPageViewer> {
   @override
   void initState() {
     super.initState();
-    _pageFuture = widget.apiService.fetchCmsPageBySlug(widget.slug);
+    widget.localeController.addListener(_reload);
+    _pageFuture = _loadPage();
+  }
+
+  @override
+  void didUpdateWidget(covariant CmsPageViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localeController != widget.localeController) {
+      oldWidget.localeController.removeListener(_reload);
+      widget.localeController.addListener(_reload);
+      _reload();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.localeController.removeListener(_reload);
+    super.dispose();
+  }
+
+  Future<CmsPageModel?> _loadPage() {
+    return widget.apiService.fetchCmsPageBySlug(
+      widget.slug,
+      language: widget.localeController.languageCode,
+      regionCode: widget.localeController.regionCode,
+    );
   }
 
   void _reload() {
     setState(() {
-      _pageFuture = widget.apiService.fetchCmsPageBySlug(widget.slug);
+      _pageFuture = _loadPage();
     });
   }
 
@@ -45,12 +73,13 @@ class _CmsPageViewerState extends State<CmsPageViewer> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copied to clipboard.')),
+      SnackBar(content: Text(context.l10n.t('cms_page_link_copied'))),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       appBar: AppBar(title: Text(widget.fallbackTitle)),
       body: FutureBuilder<CmsPageModel?>(
@@ -62,10 +91,9 @@ class _CmsPageViewerState extends State<CmsPageViewer> {
 
           if (snapshot.hasError) {
             return _PageStateCard(
-              title: 'Unable to load this page',
-              description:
-                  'The latest admin-managed content could not be retrieved. Retry to refresh this page.',
-              actionLabel: 'Retry',
+              title: l10n.t('cms_page_error_title'),
+              description: l10n.t('cms_page_error_desc'),
+              actionLabel: l10n.t('common_retry'),
               onPressed: _reload,
             );
           }
@@ -74,9 +102,8 @@ class _CmsPageViewerState extends State<CmsPageViewer> {
           if (page == null || page.id == 0) {
             return _PageStateCard(
               title: widget.fallbackTitle,
-              description:
-                  'This page has not been published yet. It will appear here once content is added in the admin panel.',
-              actionLabel: 'Refresh',
+              description: l10n.t('cms_page_empty_desc'),
+              actionLabel: l10n.t('common_refresh'),
               onPressed: _reload,
             );
           }
@@ -101,7 +128,9 @@ class _CmsPageViewerState extends State<CmsPageViewer> {
                       color: AppColors.brownDeep,
                     ),
               ),
-              if ((page.localizedExcerpt(context.l10n) ?? '').trim().isNotEmpty) ...[
+              if ((page.localizedExcerpt(context.l10n) ?? '')
+                  .trim()
+                  .isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Text(
                   page.localizedExcerpt(context.l10n)!,
@@ -121,14 +150,16 @@ class _CmsPageViewerState extends State<CmsPageViewer> {
                 ),
                 child: Text(
                   ((page.localizedBody(context.l10n) ?? '').trim().isEmpty)
-                      ? 'Content for this page is currently empty.'
+                      ? l10n.t('cms_page_body_empty')
                       : page.localizedBody(context.l10n)!,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         height: 1.7,
                       ),
                 ),
               ),
-              if ((page.localizedCtaLabel(context.l10n) ?? '').trim().isNotEmpty &&
+              if ((page.localizedCtaLabel(context.l10n) ?? '')
+                      .trim()
+                      .isNotEmpty &&
                   (page.ctaUrl ?? '').trim().isNotEmpty) ...[
                 const SizedBox(height: 18),
                 FilledButton.icon(

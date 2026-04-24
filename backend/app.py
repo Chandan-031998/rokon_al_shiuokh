@@ -21,6 +21,7 @@ from routes.wishlist_routes import wishlist_bp
 from routes.discovery_routes import discovery_bp
 from routes.admin_discovery_routes import admin_discovery_bp
 from services.catalog_seed import ensure_starter_catalog_data
+from services.content_seed import ensure_content_management_data
 from utils.api import error_response, success_response
 
 
@@ -156,26 +157,60 @@ def _run_startup_tasks(app: Flask):
         return
 
     try:
-        _bootstrap_admin_user(app)
+        _bootstrap_admin_users(app)
         ensure_starter_catalog_data()
+        ensure_content_management_data()
     except Exception as error:  # pragma: no cover - startup is environment specific
         db.session.rollback()
         print(f'Startup Error: {error}', flush=True)
         app.logger.exception('Startup initialization failed: %s', error)
 
 
-def _bootstrap_admin_user(app: Flask):
-    email = (app.config.get('ADMIN_BOOTSTRAP_EMAIL') or '').strip().lower()
-    password = (app.config.get('ADMIN_BOOTSTRAP_PASSWORD') or '').strip()
-    full_name = (app.config.get('ADMIN_BOOTSTRAP_NAME') or 'Rokon Admin').strip()
+def _bootstrap_admin_users(app: Flask):
+    accounts = app.config.get('ADMIN_BOOTSTRAP_ACCOUNTS') or []
+    if not accounts:
+        legacy_email = (app.config.get('ADMIN_BOOTSTRAP_EMAIL') or '').strip().lower()
+        legacy_password = (app.config.get('ADMIN_BOOTSTRAP_PASSWORD') or '').strip()
+        legacy_name = (app.config.get('ADMIN_BOOTSTRAP_NAME') or 'Rokon Admin').strip()
+        if legacy_email and legacy_password:
+            accounts = [
+                {
+                    'email': legacy_email,
+                    'password': legacy_password,
+                    'full_name': legacy_name,
+                    'branch': None,
+                }
+            ]
+
+    if not accounts:
+        return
+
+    for account in accounts:
+        _bootstrap_admin_user(app, account)
+
+
+def _bootstrap_admin_user(app: Flask, account: dict[str, str | None]):
+    email = (account.get('email') or '').strip().lower()
+    password = (account.get('password') or '').strip()
+    full_name = (account.get('full_name') or 'Rokon Admin').strip()
+    branch = (account.get('branch') or '').strip() or None
     if not email or not password:
         return
 
     try:
         existing_admin = User.query.filter_by(email=email).first()
         if existing_admin:
+            changed = False
             if existing_admin.role != 'admin':
                 existing_admin.role = 'admin'
+                changed = True
+            if not existing_admin.is_active:
+                existing_admin.is_active = True
+                changed = True
+            if branch and existing_admin.branch != branch:
+                existing_admin.branch = branch
+                changed = True
+            if changed:
                 db.session.commit()
             return
 
@@ -183,6 +218,7 @@ def _bootstrap_admin_user(app: Flask):
             full_name=full_name,
             email=email,
             role='admin',
+            branch=branch,
             is_active=True,
         )
         user.set_password(password)
@@ -191,7 +227,7 @@ def _bootstrap_admin_user(app: Flask):
         app.logger.info('Bootstrapped admin user: %s', email)
     except Exception as error:  # pragma: no cover - bootstrap is environment specific
         db.session.rollback()
-        app.logger.warning('Unable to bootstrap admin user: %s', error)
+        app.logger.warning('Unable to bootstrap admin user %s: %s', email, error)
 
 
 app = create_app()

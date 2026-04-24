@@ -10,6 +10,7 @@ create table if not exists users (
   phone varchar(30) unique,
   password_hash text not null,
   role varchar(20) not null default 'customer',
+  branch varchar(120),
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -17,6 +18,8 @@ create table if not exists users (
 create table if not exists branches (
   id bigserial primary key,
   name varchar(120) not null,
+  region_code varchar(2),
+  default_currency_code varchar(3),
   city varchar(120),
   address text,
   latitude numeric(10,7),
@@ -24,14 +27,19 @@ create table if not exists branches (
   phone varchar(30),
   map_link text,
   is_active boolean not null default true,
+  pickup_available boolean not null default true,
+  delivery_available boolean not null default true,
+  delivery_coverage text,
   created_at timestamptz not null default now()
 );
 
 create table if not exists categories (
   id bigserial primary key,
   name varchar(120) not null,
+  name_en varchar(120),
   name_ar varchar(120),
   image_url text,
+  icon_key varchar(80),
   sort_order integer not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
@@ -42,11 +50,16 @@ create table if not exists products (
   category_id bigint not null references categories(id) on delete restrict,
   branch_id bigint references branches(id) on delete set null,
   name varchar(200) not null,
+  name_en varchar(200),
   name_ar varchar(200),
   sku varchar(80) unique,
   short_description varchar(280),
+  short_description_en varchar(280),
+  short_description_ar varchar(280),
   description text,
   full_description text,
+  full_description_en text,
+  full_description_ar text,
   price numeric(10,2) not null check (price >= 0),
   sale_price numeric(10,2) check (sale_price is null or (sale_price >= 0 and sale_price <= price)),
   stock_qty integer not null default 0 check (stock_qty >= 0),
@@ -57,6 +70,15 @@ create table if not exists products (
   is_featured boolean not null default false,
   is_hidden_from_search boolean not null default false,
   is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists product_images (
+  id bigserial primary key,
+  product_id bigint not null references products(id) on delete cascade,
+  image_url text not null,
+  sort_order integer not null default 0,
+  is_primary boolean not null default false,
   created_at timestamptz not null default now()
 );
 
@@ -126,10 +148,22 @@ create table if not exists notifications (
 create table if not exists offers (
   id bigserial primary key,
   title varchar(150) not null,
+  title_en varchar(150),
+  title_ar varchar(150),
+  subtitle varchar(180),
+  subtitle_en varchar(180),
+  subtitle_ar varchar(180),
   description text,
+  description_en text,
+  description_ar text,
   banner_url text,
+  region_code varchar(2),
+  currency_code varchar(3),
   discount_type varchar(20),
   discount_value numeric(10,2) default 0,
+  product_id bigint references products(id) on delete set null,
+  category_id bigint references categories(id) on delete set null,
+  branch_id bigint references branches(id) on delete set null,
   starts_at timestamptz,
   ends_at timestamptz,
   is_active boolean not null default true,
@@ -140,12 +174,19 @@ create table if not exists cms_pages (
   id bigserial primary key,
   slug varchar(160) not null unique,
   title varchar(180) not null,
+  title_en varchar(180),
+  title_ar varchar(180),
   section varchar(60) not null,
   excerpt varchar(280),
+  excerpt_en varchar(280),
+  excerpt_ar varchar(280),
   body text,
+  body_en text,
+  body_ar text,
   image_url text,
   cta_label varchar(80),
   cta_url text,
+  region_code varchar(2),
   metadata_json jsonb not null default '{}'::jsonb,
   sort_order integer not null default 0,
   is_active boolean not null default true,
@@ -153,10 +194,48 @@ create table if not exists cms_pages (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists product_region_prices (
+  id bigserial primary key,
+  product_id bigint not null references products(id) on delete cascade,
+  region_code varchar(2) not null,
+  currency_code varchar(3) not null,
+  price numeric(10,2) not null check (price >= 0),
+  sale_price numeric(10,2) check (sale_price is null or (sale_price >= 0 and sale_price <= price)),
+  is_visible boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (product_id, region_code)
+);
+
+create table if not exists product_branch_availability (
+  id bigserial primary key,
+  product_id bigint not null references products(id) on delete cascade,
+  branch_id bigint not null references branches(id) on delete cascade,
+  is_available boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (product_id, branch_id)
+);
+
+create table if not exists branch_region_settings (
+  id bigserial primary key,
+  branch_id bigint not null references branches(id) on delete cascade,
+  region_code varchar(2) not null,
+  currency_code varchar(3) not null,
+  is_visible boolean not null default true,
+  pickup_available boolean not null default true,
+  delivery_available boolean not null default true,
+  delivery_coverage text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (branch_id, region_code)
+);
+
 create table if not exists faqs (
   id bigserial primary key,
   question varchar(240) not null,
+  question_ar varchar(240),
   answer text not null,
+  answer_ar text,
   sort_order integer not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -168,9 +247,12 @@ create table if not exists support_settings (
   contact_email varchar(180),
   contact_phone varchar(40),
   contact_address text,
+  contact_address_ar text,
   support_hours varchar(180),
+  support_hours_ar varchar(180),
   whatsapp_number varchar(40),
   whatsapp_label varchar(120),
+  whatsapp_label_ar varchar(120),
   payment_cod_enabled boolean not null default true,
   payment_card_enabled boolean not null default false,
   payment_bank_transfer_enabled boolean not null default false,
@@ -274,6 +356,7 @@ alter table if exists orders alter column user_id drop not null;
 
 create index if not exists idx_products_category on products(category_id);
 create index if not exists idx_products_branch on products(branch_id);
+create index if not exists idx_product_images_product_sort on product_images(product_id, sort_order, id);
 create index if not exists idx_orders_user on orders(user_id);
 create index if not exists idx_orders_guest on orders(guest_session_id);
 create index if not exists idx_order_items_order on order_items(order_id);
@@ -302,6 +385,10 @@ create unique index if not exists uq_cart_items_user_product_branch
 create unique index if not exists uq_cart_items_guest_product_branch
   on cart_items(guest_session_id, product_id, coalesce(branch_id, -1))
   where guest_session_id is not null;
+
+create unique index if not exists uq_product_images_primary_per_product
+  on product_images(product_id)
+  where is_primary is true;
 
 -- Seed branches from project brief
 insert into branches (name, city, address, phone)
@@ -340,6 +427,21 @@ select c.id, b.id, 'Luxury Saffron Mix', 'خلطة زعفران فاخرة', 'SP
 from categories c cross join branches b
 where c.name = 'Spices' and b.name = 'Abha Branch'
   and not exists (select 1 from products where sku = 'SPI-001');
+
+insert into product_images (product_id, image_url, sort_order, is_primary)
+select
+  p.id,
+  p.image_url,
+  0,
+  true
+from products p
+where coalesce(trim(p.image_url), '') <> ''
+  and not exists (
+    select 1
+    from product_images pi
+    where pi.product_id = p.id
+      and pi.image_url = p.image_url
+  );
 
 insert into search_terms (term, term_type, synonyms, sort_order, is_active)
 select 'arabic coffee', 'popular', 'gahwa,qahwa,coffee', 1, true
@@ -381,6 +483,27 @@ insert into cms_pages (slug, title, section, excerpt, body, sort_order, is_activ
 select 'homepage-hero-main', 'Homepage Hero Main', 'hero_banner', 'Primary homepage hero banner.', 'Primary homepage hero banner content.', 1, true
 where not exists (select 1 from cms_pages where slug = 'homepage-hero-main');
 
-insert into support_settings (id, contact_email, contact_phone, whatsapp_number, whatsapp_label)
-select 1, 'support@rokonalshiuokh.com', '+966500000000', '+966500000000', 'Chat with Support'
+insert into support_settings (
+  id,
+  contact_email,
+  contact_phone,
+  contact_address,
+  contact_address_ar,
+  support_hours,
+  support_hours_ar,
+  whatsapp_number,
+  whatsapp_label,
+  whatsapp_label_ar
+)
+select
+  1,
+  'support@rokonalshiuokh.com',
+  '+966500000000',
+  'Mahayil Aseer & Abha branch support coverage',
+  'تغطية دعم فروع محايل عسير وأبها',
+  'Daily support hours managed by admin',
+  'ساعات الدعم اليومية تتم إدارتها من لوحة التحكم',
+  '+966500000000',
+  'Chat with Support',
+  'تواصل عبر واتساب'
 where not exists (select 1 from support_settings where id = 1);

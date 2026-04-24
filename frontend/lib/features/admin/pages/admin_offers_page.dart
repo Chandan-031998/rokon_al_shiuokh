@@ -118,7 +118,8 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', ''))),
       );
     }
   }
@@ -149,7 +150,8 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
   Widget build(BuildContext context) {
     return AdminPageFrame(
       title: 'Offers',
-      subtitle: 'Manage promotional banners, discount metadata, and active customer-facing offers.',
+      subtitle:
+          'Manage promotional banners, discount metadata, and active customer-facing offers.',
       actions: [
         OutlinedButton.icon(
           onPressed: _load,
@@ -171,7 +173,8 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
           border: Border.all(color: AppColors.border),
         ),
         child: _loading
-            ? const Center(child: Padding(
+            ? const Center(
+                child: Padding(
                 padding: EdgeInsets.all(48),
                 child: CircularProgressIndicator(),
               ))
@@ -179,8 +182,9 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
                 ? _OffersError(message: _error!, onRetry: _load)
                 : DataTable(
                     columns: const [
-                      DataColumn(label: Text('Title')),
+                      DataColumn(label: Text('Offer Copy')),
                       DataColumn(label: Text('Discount')),
+                      DataColumn(label: Text('Region')),
                       DataColumn(label: Text('Linked')),
                       DataColumn(label: Text('Schedule')),
                       DataColumn(label: Text('Active')),
@@ -196,17 +200,34 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(offer.title),
+                                    if ((offer.titleAr ?? '').isNotEmpty)
+                                      Text(
+                                        offer.titleAr!,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
                                     if ((offer.subtitle ?? '').isNotEmpty)
-                                      Text(offer.subtitle!, style: Theme.of(context).textTheme.bodySmall),
+                                      Text(offer.subtitle!,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
                                   ],
                                 ),
                               ),
-                              DataCell(Text('${offer.discountType ?? 'none'} ${offer.discountValue.toStringAsFixed(2)}')),
+                              DataCell(Text(
+                                  '${offer.discountType ?? 'none'} ${offer.discountValue.toStringAsFixed(2)}')),
+                              DataCell(
+                                Text(
+                                  '${(offer.regionCode ?? 'all').toUpperCase()}${(offer.currencyCode ?? '').isEmpty ? '' : ' / ${offer.currencyCode}'}',
+                                ),
+                              ),
                               DataCell(Text(_linkLabel(offer))),
                               DataCell(Text(_scheduleLabel(offer))),
                               DataCell(Switch(
                                 value: offer.isActive,
-                                onChanged: (value) => _toggleOffer(offer, value),
+                                onChanged: (value) =>
+                                    _toggleOffer(offer, value),
                               )),
                               DataCell(
                                 Wrap(
@@ -234,13 +255,25 @@ class _AdminOffersPageState extends State<AdminOffersPage> {
 
   String _linkLabel(AdminOfferModel offer) {
     if (offer.productId != null) {
-      return _products.where((item) => item.id == offer.productId).firstOrNull?.name ?? 'Product';
+      return _products
+              .where((item) => item.id == offer.productId)
+              .firstOrNull
+              ?.name ??
+          'Product';
     }
     if (offer.categoryId != null) {
-      return _categories.where((item) => item.id == offer.categoryId).firstOrNull?.name ?? 'Category';
+      return _categories
+              .where((item) => item.id == offer.categoryId)
+              .firstOrNull
+              ?.name ??
+          'Category';
     }
     if (offer.branchId != null) {
-      return _branches.where((item) => item.id == offer.branchId).firstOrNull?.name ?? 'Branch';
+      return _branches
+              .where((item) => item.id == offer.branchId)
+              .firstOrNull
+              ?.name ??
+          'Branch';
     }
     return 'General';
   }
@@ -277,13 +310,18 @@ class _OfferEditorDialog extends StatefulWidget {
 class _OfferEditorDialogState extends State<_OfferEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleController;
+  late final TextEditingController _titleArController;
   late final TextEditingController _subtitleController;
+  late final TextEditingController _subtitleArController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _descriptionArController;
   late final TextEditingController _bannerUrlController;
   late final TextEditingController _discountValueController;
   late final TextEditingController _startsAtController;
   late final TextEditingController _endsAtController;
   String? _discountType;
+  String? _regionCode;
+  String? _currencyCode;
   int? _productId;
   int? _categoryId;
   int? _branchId;
@@ -294,9 +332,20 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
   void initState() {
     super.initState();
     final offer = widget.offer;
-    _titleController = TextEditingController(text: offer?.title ?? '');
-    _subtitleController = TextEditingController(text: offer?.subtitle ?? '');
-    _descriptionController = TextEditingController(text: offer?.description ?? '');
+    _titleController = TextEditingController(
+      text: offer?.titleEn ?? offer?.title ?? '',
+    );
+    _titleArController = TextEditingController(text: offer?.titleAr ?? '');
+    _subtitleController = TextEditingController(
+      text: offer?.subtitleEn ?? offer?.subtitle ?? '',
+    );
+    _subtitleArController =
+        TextEditingController(text: offer?.subtitleAr ?? '');
+    _descriptionController = TextEditingController(
+      text: offer?.descriptionEn ?? offer?.description ?? '',
+    );
+    _descriptionArController =
+        TextEditingController(text: offer?.descriptionAr ?? '');
     _bannerUrlController = TextEditingController(text: offer?.bannerUrl ?? '');
     _discountValueController = TextEditingController(
       text: offer == null ? '0' : offer.discountValue.toStringAsFixed(2),
@@ -308,6 +357,9 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
       text: offer?.endsAt?.split('.').first ?? '',
     );
     _discountType = offer?.discountType;
+    _regionCode = offer?.regionCode;
+    _currencyCode =
+        offer?.currencyCode ?? _defaultCurrencyForRegion(_regionCode);
     _productId = offer?.productId;
     _categoryId = offer?.categoryId;
     _branchId = offer?.branchId;
@@ -317,8 +369,11 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
   @override
   void dispose() {
     _titleController.dispose();
+    _titleArController.dispose();
     _subtitleController.dispose();
+    _subtitleArController.dispose();
     _descriptionController.dispose();
+    _descriptionArController.dispose();
     _bannerUrlController.dispose();
     _discountValueController.dispose();
     _startsAtController.dispose();
@@ -334,9 +389,17 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
     try {
       final payload = {
         'title': _titleController.text.trim(),
+        'title_en': _titleController.text.trim(),
+        'title_ar': _titleArController.text.trim(),
         'subtitle': _subtitleController.text.trim(),
+        'subtitle_en': _subtitleController.text.trim(),
+        'subtitle_ar': _subtitleArController.text.trim(),
         'description': _descriptionController.text.trim(),
+        'description_en': _descriptionController.text.trim(),
+        'description_ar': _descriptionArController.text.trim(),
         'banner_url': _bannerUrlController.text.trim(),
+        'region_code': _regionCode,
+        'currency_code': _currencyCode,
         'discount_type': _discountType,
         'discount_value': double.parse(_discountValueController.text.trim()),
         'product_id': _productId,
@@ -364,7 +427,8 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', ''))),
       );
     } finally {
       if (mounted) {
@@ -386,24 +450,103 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
               children: [
                 TextFormField(
                   controller: _titleController,
-                  decoration: const InputDecoration(labelText: 'Title'),
-                  validator: (value) => (value ?? '').trim().isEmpty ? 'Title is required.' : null,
+                  decoration:
+                      const InputDecoration(labelText: 'Offer Title (English)'),
+                  validator: (value) => (value ?? '').trim().isEmpty
+                      ? 'English title is required.'
+                      : null,
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _titleArController,
+                  decoration:
+                      const InputDecoration(labelText: 'Offer Title (Arabic)'),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _subtitleController,
-                  decoration: const InputDecoration(labelText: 'Subtitle'),
+                  decoration: const InputDecoration(
+                      labelText: 'Offer Subtitle (English)'),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _subtitleArController,
+                  decoration: const InputDecoration(
+                    labelText: 'Offer Subtitle (Arabic)',
+                  ),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _descriptionController,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Description'),
+                  decoration:
+                      const InputDecoration(labelText: 'Offer Copy (English)'),
+                ),
+                const SizedBox(height: 14),
+                TextFormField(
+                  controller: _descriptionArController,
+                  maxLines: 3,
+                  decoration:
+                      const InputDecoration(labelText: 'Offer Copy (Arabic)'),
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
                   controller: _bannerUrlController,
                   decoration: const InputDecoration(labelText: 'Banner URL'),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: _regionCode,
+                        decoration: const InputDecoration(
+                            labelText: 'Storefront Region'),
+                        items: const [
+                          DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All regions'),
+                          ),
+                          DropdownMenuItem<String?>(
+                            value: 'sa',
+                            child: Text('Saudi Arabia (SA)'),
+                          ),
+                          DropdownMenuItem<String?>(
+                            value: 'ae',
+                            child: Text('United Arab Emirates (AE)'),
+                          ),
+                        ],
+                        onChanged: (value) => setState(() {
+                          _regionCode = value;
+                          _currencyCode = _defaultCurrencyForRegion(value);
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: _currencyCode,
+                        decoration:
+                            const InputDecoration(labelText: 'Currency Code'),
+                        items: const [
+                          DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Auto by region'),
+                          ),
+                          DropdownMenuItem<String?>(
+                            value: 'SAR',
+                            child: Text('SAR'),
+                          ),
+                          DropdownMenuItem<String?>(
+                            value: 'AED',
+                            child: Text('AED'),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _currencyCode = value),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
                 Row(
@@ -435,23 +578,31 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
                     Expanded(
                       child: DropdownButtonFormField<String?>(
                         initialValue: _discountType,
-                        decoration: const InputDecoration(labelText: 'Discount Type'),
+                        decoration:
+                            const InputDecoration(labelText: 'Discount Type'),
                         items: const [
-                          DropdownMenuItem<String?>(value: null, child: Text('None')),
-                          DropdownMenuItem<String?>(value: 'percentage', child: Text('Percentage')),
-                          DropdownMenuItem<String?>(value: 'fixed_amount', child: Text('Fixed Amount')),
+                          DropdownMenuItem<String?>(
+                              value: null, child: Text('None')),
+                          DropdownMenuItem<String?>(
+                              value: 'percentage', child: Text('Percentage')),
+                          DropdownMenuItem<String?>(
+                              value: 'fixed_amount',
+                              child: Text('Fixed Amount')),
                         ],
-                        onChanged: (value) => setState(() => _discountType = value),
+                        onChanged: (value) =>
+                            setState(() => _discountType = value),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextFormField(
                         controller: _discountValueController,
-                        decoration: const InputDecoration(labelText: 'Discount Value'),
-                        validator: (value) => double.tryParse((value ?? '').trim()) == null
-                            ? 'Enter a valid number.'
-                            : null,
+                        decoration:
+                            const InputDecoration(labelText: 'Discount Value'),
+                        validator: (value) =>
+                            double.tryParse((value ?? '').trim()) == null
+                                ? 'Enter a valid number.'
+                                : null,
                       ),
                     ),
                   ],
@@ -459,9 +610,11 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<int?>(
                   initialValue: _productId,
-                  decoration: const InputDecoration(labelText: 'Linked Product'),
+                  decoration:
+                      const InputDecoration(labelText: 'Linked Product'),
                   items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('None')),
+                    const DropdownMenuItem<int?>(
+                        value: null, child: Text('None')),
                     ...widget.products.map(
                       (product) => DropdownMenuItem<int?>(
                         value: product.id,
@@ -474,9 +627,11 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<int?>(
                   initialValue: _categoryId,
-                  decoration: const InputDecoration(labelText: 'Linked Category'),
+                  decoration:
+                      const InputDecoration(labelText: 'Linked Category'),
                   items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('None')),
+                    const DropdownMenuItem<int?>(
+                        value: null, child: Text('None')),
                     ...widget.categories.map(
                       (category) => DropdownMenuItem<int?>(
                         value: category.id,
@@ -491,7 +646,8 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
                   initialValue: _branchId,
                   decoration: const InputDecoration(labelText: 'Linked Branch'),
                   items: [
-                    const DropdownMenuItem<int?>(value: null, child: Text('None')),
+                    const DropdownMenuItem<int?>(
+                        value: null, child: Text('None')),
                     ...widget.branches.map(
                       (branch) => DropdownMenuItem<int?>(
                         value: branch.id,
@@ -523,6 +679,17 @@ class _OfferEditorDialogState extends State<_OfferEditorDialog> {
         ),
       ],
     );
+  }
+}
+
+String? _defaultCurrencyForRegion(String? regionCode) {
+  switch (regionCode) {
+    case 'sa':
+      return 'SAR';
+    case 'ae':
+      return 'AED';
+    default:
+      return null;
   }
 }
 

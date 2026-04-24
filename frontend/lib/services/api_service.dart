@@ -36,15 +36,16 @@ class ApiService {
   static final ValueNotifier<int> cartCountListenable = ValueNotifier<int>(0);
   static final ValueNotifier<Set<int>> wishlistIdsListenable =
       ValueNotifier<Set<int>>(<int>{});
-  static List<CategoryModel>? _cachedCategories;
-  static DateTime? _cachedCategoriesAt;
-  static Future<List<CategoryModel>>? _pendingCategories;
-  static List<BranchModel>? _cachedBranches;
-  static DateTime? _cachedBranchesAt;
-  static Future<List<BranchModel>>? _pendingBranches;
-  static List<ProductModel>? _cachedFeaturedProducts;
-  static DateTime? _cachedFeaturedProductsAt;
-  static Future<List<ProductModel>>? _pendingFeaturedProducts;
+  static final Map<String, List<CategoryModel>> _cachedCategories = {};
+  static final Map<String, DateTime> _cachedCategoriesAt = {};
+  static final Map<String, Future<List<CategoryModel>>> _pendingCategories = {};
+  static final Map<String, List<BranchModel>> _cachedBranches = {};
+  static final Map<String, DateTime> _cachedBranchesAt = {};
+  static final Map<String, Future<List<BranchModel>>> _pendingBranches = {};
+  static final Map<String, List<ProductModel>> _cachedFeaturedProducts = {};
+  static final Map<String, DateTime> _cachedFeaturedProductsAt = {};
+  static final Map<String, Future<List<ProductModel>>>
+      _pendingFeaturedProducts = {};
 
   Future<String?> _readAuthToken() async {
     try {
@@ -177,15 +178,15 @@ class ApiService {
   }
 
   void clearPublicCatalogCache() {
-    _cachedCategories = null;
-    _cachedCategoriesAt = null;
-    _pendingCategories = null;
-    _cachedBranches = null;
-    _cachedBranchesAt = null;
-    _pendingBranches = null;
-    _cachedFeaturedProducts = null;
-    _cachedFeaturedProductsAt = null;
-    _pendingFeaturedProducts = null;
+    _cachedCategories.clear();
+    _cachedCategoriesAt.clear();
+    _pendingCategories.clear();
+    _cachedBranches.clear();
+    _cachedBranchesAt.clear();
+    _pendingBranches.clear();
+    _cachedFeaturedProducts.clear();
+    _cachedFeaturedProductsAt.clear();
+    _pendingFeaturedProducts.clear();
   }
 
   Future<void> refreshCartCount() async {
@@ -207,33 +208,42 @@ class ApiService {
     wishlistIdsListenable.value = Set<int>.unmodifiable(ids);
   }
 
-  Future<List<CategoryModel>> fetchCategories(
-      {bool forceRefresh = false}) async {
+  Future<List<CategoryModel>> fetchCategories({
+    bool forceRefresh = false,
+    String? language,
+  }) async {
+    final cacheKey = 'categories:${(language ?? 'en').trim().toLowerCase()}';
     if (!forceRefresh &&
-        _cachedCategories != null &&
-        _isFresh(_cachedCategoriesAt)) {
-      return _cachedCategories!;
+        _cachedCategories.containsKey(cacheKey) &&
+        _isFresh(_cachedCategoriesAt[cacheKey])) {
+      return _cachedCategories[cacheKey]!;
     }
-    if (!forceRefresh && _pendingCategories != null) {
-      return _pendingCategories!;
+    if (!forceRefresh && _pendingCategories.containsKey(cacheKey)) {
+      return _pendingCategories[cacheKey]!;
     }
 
-    final pending = _fetchCategoriesNetwork();
-    _pendingCategories = pending;
+    final pending = _fetchCategoriesNetwork(language: language);
+    _pendingCategories[cacheKey] = pending;
     try {
       final categories = List<CategoryModel>.unmodifiable(await pending);
-      _cachedCategories = categories;
-      _cachedCategoriesAt = DateTime.now();
+      _cachedCategories[cacheKey] = categories;
+      _cachedCategoriesAt[cacheKey] = DateTime.now();
       return categories;
     } finally {
-      if (identical(_pendingCategories, pending)) {
-        _pendingCategories = null;
+      if (identical(_pendingCategories[cacheKey], pending)) {
+        _pendingCategories.remove(cacheKey);
       }
     }
   }
 
-  Future<List<CategoryModel>> _fetchCategoriesNetwork() async {
-    final uri = ApiConstants.endpoint('/categories/');
+  Future<List<CategoryModel>> _fetchCategoriesNetwork(
+      {String? language}) async {
+    final uri = ApiConstants.endpoint(
+      '/categories/',
+      queryParameters: {
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+      },
+    );
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'categories');
     final rawItems = switch (decoded) {
@@ -249,32 +259,42 @@ class ApiService {
         .toList();
   }
 
-  Future<List<BranchModel>> fetchBranches({bool forceRefresh = false}) async {
+  Future<List<BranchModel>> fetchBranches({
+    bool forceRefresh = false,
+    String? regionCode,
+  }) async {
+    final cacheKey = 'branches:${(regionCode ?? 'all').trim().toLowerCase()}';
     if (!forceRefresh &&
-        _cachedBranches != null &&
-        _isFresh(_cachedBranchesAt)) {
-      return _cachedBranches!;
+        _cachedBranches.containsKey(cacheKey) &&
+        _isFresh(_cachedBranchesAt[cacheKey])) {
+      return _cachedBranches[cacheKey]!;
     }
-    if (!forceRefresh && _pendingBranches != null) {
-      return _pendingBranches!;
+    if (!forceRefresh && _pendingBranches.containsKey(cacheKey)) {
+      return _pendingBranches[cacheKey]!;
     }
 
-    final pending = _fetchBranchesNetwork();
-    _pendingBranches = pending;
+    final pending = _fetchBranchesNetwork(regionCode: regionCode);
+    _pendingBranches[cacheKey] = pending;
     try {
       final branches = List<BranchModel>.unmodifiable(await pending);
-      _cachedBranches = branches;
-      _cachedBranchesAt = DateTime.now();
+      _cachedBranches[cacheKey] = branches;
+      _cachedBranchesAt[cacheKey] = DateTime.now();
       return branches;
     } finally {
-      if (identical(_pendingBranches, pending)) {
-        _pendingBranches = null;
+      if (identical(_pendingBranches[cacheKey], pending)) {
+        _pendingBranches.remove(cacheKey);
       }
     }
   }
 
-  Future<List<BranchModel>> _fetchBranchesNetwork() async {
-    final uri = ApiConstants.endpoint('/branches/');
+  Future<List<BranchModel>> _fetchBranchesNetwork({String? regionCode}) async {
+    final uri = ApiConstants.endpoint(
+      '/branches/',
+      queryParameters: {
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
+      },
+    );
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeResponse(response, 'branches');
     final rawItems = switch (decoded) {
@@ -300,11 +320,18 @@ class ApiService {
     return branches;
   }
 
-  Future<List<CmsPageModel>> fetchCmsPages({String? section}) async {
+  Future<List<CmsPageModel>> fetchCmsPages({
+    String? section,
+    String? language,
+    String? regionCode,
+  }) async {
     final uri = ApiConstants.endpoint(
       '/content/pages',
       queryParameters: {
         if ((section ?? '').trim().isNotEmpty) 'section': section!.trim(),
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
       },
     );
     final response = await http.get(uri, headers: await _buildHeaders());
@@ -319,8 +346,19 @@ class ApiService {
         .toList();
   }
 
-  Future<CmsPageModel?> fetchCmsPageBySlug(String slug) async {
-    final uri = ApiConstants.endpoint('/content/pages/$slug');
+  Future<CmsPageModel?> fetchCmsPageBySlug(
+    String slug, {
+    String? language,
+    String? regionCode,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/content/pages/$slug',
+      queryParameters: {
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
+      },
+    );
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeObjectResponse(response, 'content page');
     final page = decoded['page'];
@@ -330,8 +368,13 @@ class ApiService {
     return CmsPageModel.fromJson(page);
   }
 
-  Future<List<FaqModel>> fetchFaqs() async {
-    final uri = ApiConstants.endpoint('/content/faqs');
+  Future<List<FaqModel>> fetchFaqs({String? language}) async {
+    final uri = ApiConstants.endpoint(
+      '/content/faqs',
+      queryParameters: {
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+      },
+    );
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeObjectResponse(response, 'faqs');
     final items = decoded['items'];
@@ -344,8 +387,18 @@ class ApiService {
         .toList();
   }
 
-  Future<SupportSettingsModel> fetchSupportSettings() async {
-    final uri = ApiConstants.endpoint('/content/support');
+  Future<SupportSettingsModel> fetchSupportSettings({
+    String? language,
+    String? regionCode,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/content/support',
+      queryParameters: {
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
+      },
+    );
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeObjectResponse(response, 'support settings');
     return SupportSettingsModel.fromJson(
@@ -353,8 +406,18 @@ class ApiService {
     );
   }
 
-  Future<List<OfferModel>> fetchOffers() async {
-    final uri = ApiConstants.endpoint('/content/offers');
+  Future<List<OfferModel>> fetchOffers({
+    String? language,
+    String? regionCode,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/content/offers',
+      queryParameters: {
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
+      },
+    );
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeObjectResponse(response, 'offers');
     final items = decoded['items'];
@@ -370,6 +433,8 @@ class ApiService {
   Future<List<ProductModel>> fetchProducts({
     int? categoryId,
     int? branchId,
+    String? language,
+    String? regionCode,
     String? query,
     List<int> filterValueIds = const <int>[],
     bool featuredOnly = false,
@@ -381,6 +446,10 @@ class ApiService {
             queryParameters: {
               if (categoryId != null) 'category_id': categoryId,
               if (branchId != null) 'branch_id': branchId,
+              if ((language ?? '').trim().isNotEmpty)
+                'language': language!.trim(),
+              if ((regionCode ?? '').trim().isNotEmpty)
+                'region_code': regionCode!.trim(),
               if ((query ?? '').trim().isNotEmpty) 'q': query!.trim(),
               if (filterValueIds.isNotEmpty)
                 'filter_value_ids': filterValueIds.join(','),
@@ -402,33 +471,53 @@ class ApiService {
         .toList();
   }
 
-  Future<List<ProductModel>> fetchFeaturedProducts(
-      {bool forceRefresh = false}) async {
+  Future<List<ProductModel>> fetchFeaturedProducts({
+    bool forceRefresh = false,
+    String? language,
+    String? regionCode,
+  }) async {
+    final cacheKey =
+        'featured:${(language ?? 'en').trim().toLowerCase()}:${(regionCode ?? 'all').trim().toLowerCase()}';
     if (!forceRefresh &&
-        _cachedFeaturedProducts != null &&
-        _isFresh(_cachedFeaturedProductsAt)) {
-      return _cachedFeaturedProducts!;
+        _cachedFeaturedProducts.containsKey(cacheKey) &&
+        _isFresh(_cachedFeaturedProductsAt[cacheKey])) {
+      return _cachedFeaturedProducts[cacheKey]!;
     }
-    if (!forceRefresh && _pendingFeaturedProducts != null) {
-      return _pendingFeaturedProducts!;
+    if (!forceRefresh && _pendingFeaturedProducts.containsKey(cacheKey)) {
+      return _pendingFeaturedProducts[cacheKey]!;
     }
 
-    final pending = fetchProducts(featuredOnly: true);
-    _pendingFeaturedProducts = pending;
+    final pending = fetchProducts(
+      featuredOnly: true,
+      language: language,
+      regionCode: regionCode,
+    );
+    _pendingFeaturedProducts[cacheKey] = pending;
     try {
       final products = List<ProductModel>.unmodifiable(await pending);
-      _cachedFeaturedProducts = products;
-      _cachedFeaturedProductsAt = DateTime.now();
+      _cachedFeaturedProducts[cacheKey] = products;
+      _cachedFeaturedProductsAt[cacheKey] = DateTime.now();
       return products;
     } finally {
-      if (identical(_pendingFeaturedProducts, pending)) {
-        _pendingFeaturedProducts = null;
+      if (identical(_pendingFeaturedProducts[cacheKey], pending)) {
+        _pendingFeaturedProducts.remove(cacheKey);
       }
     }
   }
 
-  Future<ProductDetailModel> fetchProductDetail(int productId) async {
-    final uri = ApiConstants.endpoint('/products/$productId');
+  Future<ProductDetailModel> fetchProductDetail(
+    int productId, {
+    String? language,
+    String? regionCode,
+  }) async {
+    final uri = ApiConstants.endpoint(
+      '/products/$productId',
+      queryParameters: {
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
+      },
+    );
     final response = await http.get(uri, headers: await _buildHeaders());
     final decoded = await _decodeObjectResponse(response, 'product details');
     return ProductDetailModel.fromJson(decoded);
@@ -438,6 +527,8 @@ class ApiService {
     required String query,
     int? categoryId,
     int? branchId,
+    String? language,
+    String? regionCode,
     List<int> filterValueIds = const <int>[],
   }) async {
     final uri = ApiConstants.endpoint(
@@ -446,6 +537,9 @@ class ApiService {
         'q': query.trim(),
         if (categoryId != null) 'category_id': categoryId,
         if (branchId != null) 'branch_id': branchId,
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
         if (filterValueIds.isNotEmpty)
           'filter_value_ids': filterValueIds.join(','),
       },
@@ -465,6 +559,8 @@ class ApiService {
   Future<List<ProductModel>> fetchCategoryDiscoveryProducts(
     int categoryId, {
     int? branchId,
+    String? language,
+    String? regionCode,
     String? query,
     List<int> filterValueIds = const <int>[],
   }) async {
@@ -472,6 +568,9 @@ class ApiService {
       '/discovery/categories/$categoryId/products',
       queryParameters: {
         if (branchId != null) 'branch_id': branchId,
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
         if ((query ?? '').trim().isNotEmpty) 'q': query!.trim(),
         if (filterValueIds.isNotEmpty)
           'filter_value_ids': filterValueIds.join(','),
@@ -516,6 +615,8 @@ class ApiService {
   Future<List<DiscoveryFilterGroupModel>> fetchDiscoveryFilters({
     int? categoryId,
     int? branchId,
+    String? language,
+    String? regionCode,
     String? query,
   }) async {
     final uri = ApiConstants.endpoint(
@@ -523,6 +624,9 @@ class ApiService {
       queryParameters: {
         if (categoryId != null) 'category_id': categoryId,
         if (branchId != null) 'branch_id': branchId,
+        if ((language ?? '').trim().isNotEmpty) 'language': language!.trim(),
+        if ((regionCode ?? '').trim().isNotEmpty)
+          'region_code': regionCode!.trim(),
         if ((query ?? '').trim().isNotEmpty) 'q': query!.trim(),
       },
     );
@@ -613,7 +717,8 @@ class ApiService {
     final uri = ApiConstants.endpoint('/wishlist/$productId');
     final response = await http.delete(uri, headers: await _buildHeaders());
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw _apiExceptionFromResponse(response, 'Failed to remove wishlist item');
+      throw _apiExceptionFromResponse(
+          response, 'Failed to remove wishlist item');
     }
     final updatedIds = Set<int>.from(wishlistIdsListenable.value)
       ..remove(productId);

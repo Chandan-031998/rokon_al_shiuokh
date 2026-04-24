@@ -1,6 +1,7 @@
 class CategoryModel {
   final int id;
   final String name;
+  final String? nameEn;
   final String? nameAr;
   final String? imageUrl;
   final String? iconKey;
@@ -11,6 +12,7 @@ class CategoryModel {
   const CategoryModel({
     required this.id,
     required this.name,
+    this.nameEn,
     this.nameAr,
     this.imageUrl,
     this.iconKey,
@@ -23,6 +25,7 @@ class CategoryModel {
     return CategoryModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
       name: (json['name'] as String? ?? '').trim(),
+      nameEn: (json['name_en'] as String?)?.trim(),
       nameAr: json['name_ar'] as String?,
       imageUrl: json['image_url'] as String?,
       iconKey: json['icon_key'] as String?,

@@ -8,12 +8,13 @@ from uuid import uuid4
 
 from flask import Blueprint, g, request
 from flask_jwt_extended import create_access_token
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db
 from models.address import Address
 from models.branch import Branch
+from models.branch_region_setting import BranchRegionSetting
 from models.category import Category
 from models.cms_page import CmsPage
 from models.faq import Faq
@@ -21,10 +22,18 @@ from models.offer import Offer
 from models.order import Order
 from models.order_item import OrderItem
 from models.product import Product
+from models.product_branch_availability import ProductBranchAvailability
+from models.product_image import ProductImage
+from models.product_region_price import ProductRegionPrice
 from models.review import Review
 from models.support_setting import SupportSetting
 from models.user import User
 from services.catalog_data import icon_key_for_category
+from services.content_seed import (
+    default_cms_pages,
+    default_faqs,
+    default_support_settings,
+)
 from utils.api import error_response, items_response, success_response
 from utils.auth import admin_required
 from utils.validators import (
@@ -59,6 +68,11 @@ ALLOWED_CMS_SECTIONS = {
 }
 
 ALLOWED_REVIEW_MODERATION_STATUSES = {'pending', 'approved', 'rejected'}
+ALLOWED_REGION_CODES = {'sa', 'ae'}
+DEFAULT_CURRENCY_BY_REGION = {
+    'sa': 'SAR',
+    'ae': 'AED',
+}
 
 
 @admin_bp.post('/auth/login')
@@ -158,7 +172,17 @@ def admin_list_products():
     if category_id:
         query = query.filter(Product.category_id == category_id)
     if branch_id:
-        query = query.filter(Product.branch_id == branch_id)
+        query = query.filter(
+            or_(
+                Product.branch_id == branch_id,
+                Product.branch_availability.any(
+                    and_(
+                        ProductBranchAvailability.branch_id == branch_id,
+                        ProductBranchAvailability.is_available.is_(True),
+                    )
+                ),
+            )
+        )
     if featured in {'true', 'false'}:
         query = query.filter(Product.is_featured.is_(featured == 'true'))
     if active in {'true', 'false'}:
@@ -182,8 +206,19 @@ def admin_create_product():
     if existing_sku:
         return error_response('A product already exists for this SKU.', status=409)
 
+    image_payloads = payload.pop('images', [])
+    region_prices_payload = payload.pop('region_prices', [])
+    branch_availability_payload = payload.pop('branch_availability', [])
     product = Product(**payload)
     db.session.add(product)
+    db.session.flush()
+    _sync_product_images(product, image_payloads)
+    _sync_product_region_prices(product, region_prices_payload)
+    _sync_product_branch_availability(product, branch_availability_payload)
+    if branch_availability_payload:
+        product.branch_id = _primary_branch_id_from_availability(
+            branch_availability_payload,
+        )
     db.session.commit()
     return success_response(
         message='Product created successfully.',
@@ -219,6 +254,9 @@ def admin_update_product(product_id: int):
         if existing:
             return error_response('A product already exists for this SKU.', status=409)
 
+    image_payloads = payload.pop('images', None)
+    region_prices_payload = payload.pop('region_prices', None)
+    branch_availability_payload = payload.pop('branch_availability', None)
     next_price = payload.get('price', product.price)
     next_sale_price = payload.get('sale_price', product.sale_price)
     try:
@@ -228,6 +266,15 @@ def admin_update_product(product_id: int):
 
     for key, value in payload.items():
         setattr(product, key, value)
+    if image_payloads is not None:
+        _sync_product_images(product, image_payloads)
+    if region_prices_payload is not None:
+        _sync_product_region_prices(product, region_prices_payload)
+    if branch_availability_payload is not None:
+        _sync_product_branch_availability(product, branch_availability_payload)
+        product.branch_id = _primary_branch_id_from_availability(
+            branch_availability_payload,
+        )
 
     db.session.commit()
     return success_response(message='Product updated successfully.', product=_serialize_product(product))
@@ -256,21 +303,29 @@ def admin_list_categories():
 def admin_create_category():
     try:
         data = get_json_body()
-        name = required_string(data, 'name', label='Name')
+        name_en = _localized_required_string(
+            data,
+            preferred_key='name_en',
+            fallback_key='name',
+            label='English name',
+        )
         name_ar = optional_string(data, 'name_ar')
         image_url = optional_string(data, 'image_url')
+        icon_key = optional_string(data, 'icon_key')
         sort_order = integer_field(data, 'sort_order', minimum=0) or 0
         is_active = _bool_field(data.get('is_active'), default=True)
     except ValidationError as exc:
         return error_response(str(exc), status=400)
 
-    if Category.query.filter(func.lower(Category.name) == name.lower()).first():
+    if Category.query.filter(func.lower(Category.name) == name_en.lower()).first():
         return error_response('A category with this name already exists.', status=409)
 
     category = Category(
-        name=name,
+        name=name_en,
+        name_en=name_en,
         name_ar=name_ar,
         image_url=image_url,
+        icon_key=icon_key,
         sort_order=sort_order,
         is_active=is_active,
     )
@@ -292,16 +347,24 @@ def admin_update_category(category_id: int):
 
     data = get_json_body()
     updates = {}
-    if 'name' in data:
-        name = required_string(data, 'name', label='Name')
-        existing = Category.query.filter(func.lower(Category.name) == name.lower(), Category.id != category_id).first()
+    if 'name' in data or 'name_en' in data:
+        name_en = _localized_required_string(
+            data,
+            preferred_key='name_en',
+            fallback_key='name',
+            label='English name',
+        )
+        existing = Category.query.filter(func.lower(Category.name) == name_en.lower(), Category.id != category_id).first()
         if existing:
             return error_response('A category with this name already exists.', status=409)
-        updates['name'] = name
+        updates['name'] = name_en
+        updates['name_en'] = name_en
     if 'name_ar' in data:
         updates['name_ar'] = optional_string(data, 'name_ar')
     if 'image_url' in data:
         updates['image_url'] = optional_string(data, 'image_url')
+    if 'icon_key' in data:
+        updates['icon_key'] = optional_string(data, 'icon_key')
     if 'sort_order' in data:
         sort_order = integer_field(data, 'sort_order', minimum=0, required=True)
         updates['sort_order'] = sort_order
@@ -346,8 +409,11 @@ def admin_create_branch():
         payload = _parse_branch_payload()
     except ValidationError as exc:
         return error_response(str(exc), status=400)
+    region_settings = payload.pop('region_settings', [])
     branch = Branch(**payload)
     db.session.add(branch)
+    db.session.flush()
+    _sync_branch_region_settings(branch, region_settings)
     db.session.commit()
     return success_response(
         message='Branch created successfully.',
@@ -368,8 +434,11 @@ def admin_update_branch(branch_id: int):
     except ValidationError as exc:
         return error_response(str(exc), status=400)
 
+    region_settings = payload.pop('region_settings', None)
     for key, value in payload.items():
         setattr(branch, key, value)
+    if region_settings is not None:
+        _sync_branch_region_settings(branch, region_settings)
 
     db.session.commit()
     return success_response(message='Branch updated successfully.', branch=_serialize_branch(branch, include_usage=True))
@@ -381,7 +450,11 @@ def admin_delete_branch(branch_id: int):
     branch = Branch.query.filter_by(id=branch_id).first()
     if not branch:
         return error_response('Branch not found.', status=404)
-    if Product.query.filter_by(branch_id=branch_id).count() or Order.query.filter_by(branch_id=branch_id).count():
+    if (
+        Product.query.filter_by(branch_id=branch_id).count()
+        or ProductBranchAvailability.query.filter_by(branch_id=branch_id).count()
+        or Order.query.filter_by(branch_id=branch_id).count()
+    ):
         return error_response('This branch is linked to products or orders and cannot be deleted.', status=409)
     db.session.delete(branch)
     db.session.commit()
@@ -535,21 +608,43 @@ def admin_update_delivery(order_id: int):
 def admin_list_cms_pages():
     section = (request.args.get('section') or '').strip().lower()
     search = (request.args.get('search') or '').strip()
-    query = CmsPage.query
-    if section:
-        query = query.filter(CmsPage.section == section)
-    if search:
-        like_term = f'%{search}%'
-        query = query.filter(
-            or_(
-                CmsPage.title.ilike(like_term),
-                CmsPage.slug.ilike(like_term),
-                CmsPage.excerpt.ilike(like_term),
-                CmsPage.body.ilike(like_term),
+    try:
+        query = CmsPage.query
+        if section:
+            query = query.filter(CmsPage.section == section)
+        if search:
+            like_term = f'%{search}%'
+            query = query.filter(
+                or_(
+                    CmsPage.title.ilike(like_term),
+                    CmsPage.slug.ilike(like_term),
+                    CmsPage.excerpt.ilike(like_term),
+                    CmsPage.body.ilike(like_term),
+                )
             )
-        )
-    rows = query.order_by(CmsPage.section.asc(), CmsPage.sort_order.asc(), CmsPage.id.asc()).all()
-    return items_response([_serialize_cms_page(row) for row in rows], total=len(rows))
+        rows = query.order_by(CmsPage.section.asc(), CmsPage.sort_order.asc(), CmsPage.id.asc()).all()
+        return items_response([_serialize_cms_page(row) for row in rows], total=len(rows))
+    except SQLAlchemyError:
+        fallback_rows = default_cms_pages()
+        if section:
+            fallback_rows = [
+                row for row in fallback_rows if row.get('section') == section
+            ]
+        if search:
+            search_lower = search.lower()
+            fallback_rows = [
+                row
+                for row in fallback_rows
+                if search_lower in str(row.get('title') or '').lower()
+                or search_lower in str(row.get('slug') or '').lower()
+                or search_lower in str(row.get('excerpt') or '').lower()
+                or search_lower in str(row.get('body') or '').lower()
+            ]
+        payload = [
+            _serialize_cms_page_payload(index, row)
+            for index, row in enumerate(fallback_rows, start=1)
+        ]
+        return items_response(payload, total=len(payload))
 
 
 @admin_bp.post('/cms/pages')
@@ -602,8 +697,12 @@ def admin_delete_cms_page(page_id: int):
 @admin_bp.get('/faqs')
 @admin_required
 def admin_list_faqs():
-    rows = Faq.query.order_by(Faq.sort_order.asc(), Faq.id.asc()).all()
-    return items_response([_serialize_faq(row) for row in rows], total=len(rows))
+    try:
+        rows = Faq.query.order_by(Faq.sort_order.asc(), Faq.id.asc()).all()
+        return items_response([_serialize_faq(row) for row in rows], total=len(rows))
+    except SQLAlchemyError:
+        payload = default_faqs()
+        return items_response(payload, total=len(payload))
 
 
 @admin_bp.post('/faqs')
@@ -649,8 +748,11 @@ def admin_delete_faq(faq_id: int):
 @admin_bp.get('/support/settings')
 @admin_required
 def admin_get_support_settings():
-    settings = SupportSetting.query.order_by(SupportSetting.id.asc()).first()
-    return success_response(settings=_serialize_support_settings(settings))
+    try:
+        settings = SupportSetting.query.order_by(SupportSetting.id.asc()).first()
+        return success_response(settings=_serialize_support_settings(settings))
+    except SQLAlchemyError:
+        return success_response(settings=default_support_settings())
 
 
 @admin_bp.put('/support/settings')
@@ -859,16 +961,51 @@ def _parse_product_payload(*, partial: bool = False) -> dict:
     data = get_json_body()
     payload: dict = {}
     if partial:
-        if 'name' in data:
-            payload['name'] = required_string(data, 'name', label='Name')
+        if 'name' in data or 'name_en' in data:
+            name_en = _localized_required_string(
+                data,
+                preferred_key='name_en',
+                fallback_key='name',
+                label='English name',
+            )
+            payload['name'] = name_en
+            payload['name_en'] = name_en
         if 'name_ar' in data:
             payload['name_ar'] = optional_string(data, 'name_ar')
+        if 'short_description_en' in data or 'short_description' in data:
+            payload['short_description_en'] = optional_string(
+                data,
+                'short_description_en',
+            ) if 'short_description_en' in data else optional_string(
+                data,
+                'short_description',
+            )
+            payload['short_description'] = payload['short_description_en']
         if 'short_description' in data:
             payload['short_description'] = optional_string(data, 'short_description')
+        if 'short_description_ar' in data:
+            payload['short_description_ar'] = optional_string(
+                data,
+                'short_description_ar',
+            )
         if 'description' in data:
             payload['description'] = optional_string(data, 'description')
+        if 'full_description_en' in data or 'full_description' in data:
+            payload['full_description_en'] = optional_string(
+                data,
+                'full_description_en',
+            ) if 'full_description_en' in data else optional_string(
+                data,
+                'full_description',
+            )
+            payload['full_description'] = payload['full_description_en']
         if 'full_description' in data:
             payload['full_description'] = optional_string(data, 'full_description')
+        if 'full_description_ar' in data:
+            payload['full_description_ar'] = optional_string(
+                data,
+                'full_description_ar',
+            )
         if 'price' in data:
             payload['price'] = _decimal_field(data.get('price'), label='Price')
         if 'sale_price' in data:
@@ -881,6 +1018,19 @@ def _parse_product_payload(*, partial: bool = False) -> dict:
             payload['tags'] = optional_string(data, 'tags')
         if 'image_url' in data:
             payload['image_url'] = optional_string(data, 'image_url')
+        if 'images' in data:
+            payload['images'] = _product_images_field(data.get('images'))
+        if 'region_prices' in data:
+            payload['region_prices'] = _product_region_prices_field(
+                data.get('region_prices'),
+            )
+        if 'branch_availability' in data:
+            payload['branch_availability'] = _product_branch_availability_field(
+                data.get('branch_availability'),
+            )
+            payload['branch_id'] = _primary_branch_id_from_availability(
+                payload['branch_availability'],
+            )
         if 'sku' in data:
             payload['sku'] = optional_string(data, 'sku')
         if 'is_featured' in data:
@@ -893,24 +1043,227 @@ def _parse_product_payload(*, partial: bool = False) -> dict:
             payload['branch_id'] = _existing_branch_id(data.get('branch_id'), allow_null=True)
         return payload
 
-    payload['name'] = required_string(data, 'name', label='Name')
+    payload['name_en'] = _localized_required_string(
+        data,
+        preferred_key='name_en',
+        fallback_key='name',
+        label='English name',
+    )
+    payload['name'] = payload['name_en']
     payload['name_ar'] = optional_string(data, 'name_ar')
-    payload['short_description'] = optional_string(data, 'short_description')
+    payload['short_description_en'] = optional_string(
+        data,
+        'short_description_en',
+    ) if 'short_description_en' in data else optional_string(
+        data,
+        'short_description',
+    )
+    payload['short_description'] = payload['short_description_en']
+    payload['short_description_ar'] = optional_string(data, 'short_description_ar')
     payload['description'] = optional_string(data, 'description')
-    payload['full_description'] = optional_string(data, 'full_description')
+    payload['full_description_en'] = optional_string(
+        data,
+        'full_description_en',
+    ) if 'full_description_en' in data else optional_string(
+        data,
+        'full_description',
+    )
+    payload['full_description'] = payload['full_description_en']
+    payload['full_description_ar'] = optional_string(data, 'full_description_ar')
     payload['price'] = _decimal_field(data.get('price'), label='Price')
     payload['sale_price'] = _optional_decimal_field(data.get('sale_price'), label='Sale price')
     payload['stock_qty'] = _coerce_int(data.get('stock_qty', 0), label='Stock')
     payload['pack_size'] = optional_string(data, 'pack_size')
     payload['tags'] = optional_string(data, 'tags')
     payload['image_url'] = optional_string(data, 'image_url')
+    payload['images'] = _product_images_field(data.get('images'))
+    payload['region_prices'] = _product_region_prices_field(data.get('region_prices', []))
+    payload['branch_availability'] = _product_branch_availability_field(
+        data.get('branch_availability', []),
+    )
     payload['sku'] = optional_string(data, 'sku')
     payload['is_featured'] = _bool_field(data.get('is_featured'), default=False)
     payload['is_active'] = _bool_field(data.get('is_active'), default=True)
     payload['category_id'] = _existing_category_id(data.get('category_id'))
     payload['branch_id'] = _existing_branch_id(data.get('branch_id'), allow_null=True)
+    if payload['branch_availability']:
+        payload['branch_id'] = _primary_branch_id_from_availability(
+            payload['branch_availability'],
+        )
     _validate_sale_price(payload.get('price'), payload.get('sale_price'))
     return payload
+
+
+def _product_images_field(value) -> list[dict]:
+    if value in (None, ''):
+        return []
+    if not isinstance(value, list):
+        raise ValidationError('Product images must be provided as a list.')
+
+    normalized_images: list[dict] = []
+    seen_urls: set[str] = set()
+    primary_count = 0
+
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ValidationError('Each product image must be an object.')
+
+        image_url = ((item.get('image_url') or '') if isinstance(item, dict) else '').strip()
+        if not image_url:
+            raise ValidationError('Each product image requires an image_url.')
+        if image_url in seen_urls:
+            continue
+        seen_urls.add(image_url)
+
+        image_id = item.get('id')
+        if image_id not in (None, ''):
+            image_id = _coerce_int(image_id, label='Product image id')
+
+        sort_order_raw = item.get('sort_order', index)
+        sort_order = _coerce_int(sort_order_raw, label='Product image sort order')
+        if sort_order < 0:
+            raise ValidationError('Product image sort order cannot be negative.')
+
+        is_primary = _bool_field(item.get('is_primary'), default=False)
+        if is_primary:
+            primary_count += 1
+
+        normalized_images.append(
+            {
+                'id': image_id,
+                'image_url': image_url,
+                'sort_order': sort_order,
+                'is_primary': is_primary,
+            }
+        )
+
+    if primary_count > 1:
+        raise ValidationError('Only one product image can be marked as primary.')
+    if normalized_images and primary_count == 0:
+        normalized_images[0]['is_primary'] = True
+
+    for index, image in enumerate(
+        sorted(normalized_images, key=lambda row: (row['sort_order'], row['id'] or 0, row['image_url']))
+    ):
+        image['sort_order'] = index
+
+    return normalized_images
+
+
+def _sync_product_images(product: Product, images_payload: list[dict]):
+    existing_by_id = {image.id: image for image in product.images}
+    retained_ids: set[int] = set()
+    synced_images: list[ProductImage] = []
+
+    if not images_payload:
+        product.images.clear()
+        if product.image_url:
+            product.image_url = None
+        return
+
+    for index, image_payload in enumerate(images_payload):
+        image_id = image_payload.get('id')
+        image = existing_by_id.get(image_id) if image_id is not None else None
+        if image is None:
+            image = ProductImage(product_id=product.id)
+            db.session.add(image)
+
+        image.image_url = image_payload['image_url']
+        image.sort_order = index
+        image.is_primary = bool(image_payload.get('is_primary'))
+        db.session.flush()
+        retained_ids.add(image.id)
+        synced_images.append(image)
+
+    for existing in list(product.images):
+        if existing.id not in retained_ids:
+            db.session.delete(existing)
+
+    ordered_images = sorted(
+        synced_images,
+        key=lambda row: (row.sort_order or 0, row.id or 0),
+    )
+    if ordered_images and not any(image.is_primary for image in ordered_images):
+        ordered_images[0].is_primary = True
+    for image in ordered_images:
+        if image.is_primary:
+            product.image_url = image.image_url
+            break
+    else:
+        product.image_url = ordered_images[0].image_url if ordered_images else None
+
+
+def _sync_product_region_prices(product: Product, rows_payload: list[dict]):
+    existing_by_region = {
+        row.region_code: row for row in product.region_prices
+    }
+    retained_regions: set[str] = set()
+
+    for row_payload in rows_payload:
+        region_code = row_payload['region_code']
+        row = existing_by_region.get(region_code)
+        if row is None:
+            row = ProductRegionPrice(product_id=product.id, region_code=region_code)
+            db.session.add(row)
+
+        row.currency_code = row_payload['currency_code']
+        row.price = row_payload['price']
+        row.sale_price = row_payload['sale_price']
+        row.is_visible = bool(row_payload['is_visible'])
+        retained_regions.add(region_code)
+
+    for existing in list(product.region_prices):
+        if existing.region_code not in retained_regions:
+            db.session.delete(existing)
+
+
+def _sync_product_branch_availability(product: Product, rows_payload: list[dict]):
+    existing_by_branch_id = {
+        row.branch_id: row for row in product.branch_availability
+    }
+    retained_branch_ids: set[int] = set()
+
+    for row_payload in rows_payload:
+        branch_id = row_payload['branch_id']
+        row = existing_by_branch_id.get(branch_id)
+        if row is None:
+            row = ProductBranchAvailability(
+                product_id=product.id,
+                branch_id=branch_id,
+            )
+            db.session.add(row)
+
+        row.is_available = bool(row_payload['is_available'])
+        retained_branch_ids.add(branch_id)
+
+    for existing in list(product.branch_availability):
+        if existing.branch_id not in retained_branch_ids:
+            db.session.delete(existing)
+
+
+def _sync_branch_region_settings(branch: Branch, rows_payload: list[dict]):
+    existing_by_region = {
+        row.region_code: row for row in branch.region_settings
+    }
+    retained_regions: set[str] = set()
+
+    for row_payload in rows_payload:
+        region_code = row_payload['region_code']
+        row = existing_by_region.get(region_code)
+        if row is None:
+            row = BranchRegionSetting(branch_id=branch.id, region_code=region_code)
+            db.session.add(row)
+
+        row.currency_code = row_payload['currency_code']
+        row.is_visible = bool(row_payload['is_visible'])
+        row.pickup_available = bool(row_payload['pickup_available'])
+        row.delivery_available = bool(row_payload['delivery_available'])
+        row.delivery_coverage = row_payload.get('delivery_coverage')
+        retained_regions.add(region_code)
+
+    for existing in list(branch.region_settings):
+        if existing.region_code not in retained_regions:
+            db.session.delete(existing)
 
 
 def _parse_branch_payload(*, partial: bool = False) -> dict:
@@ -937,6 +1290,20 @@ def _parse_branch_payload(*, partial: bool = False) -> dict:
             payload[key] = parser(data, key)
     if not partial:
         payload['name'] = required_string(data, 'name', label='Name')
+    if 'region_code' in data or not partial:
+        payload['region_code'] = _region_code_field(
+            data.get('region_code', 'sa'),
+        )
+    if 'default_currency_code' in data or not partial:
+        region_code = payload.get('region_code') or 'sa'
+        payload['default_currency_code'] = _currency_code_field(
+            data.get('default_currency_code'),
+            region_code=region_code,
+        )
+    if 'region_settings' in data or not partial:
+        payload['region_settings'] = _branch_region_settings_field(
+            data.get('region_settings', []),
+        )
     if 'is_active' in data or not partial:
         payload['is_active'] = _bool_field(data.get('is_active'), default=True)
     if 'pickup_available' in data or not partial:
@@ -952,20 +1319,42 @@ def _parse_cms_page_payload(*, partial: bool = False) -> dict:
     if partial:
         if 'slug' in data:
             payload['slug'] = _slug_field(data.get('slug'))
-        if 'title' in data:
-            payload['title'] = required_string(data, 'title', label='Title')
+        if 'title' in data or 'title_en' in data:
+            title_en = _localized_required_string(
+                data,
+                preferred_key='title_en',
+                fallback_key='title',
+                label='English title',
+            )
+            payload['title'] = title_en
+            payload['title_en'] = title_en
+        if 'title_ar' in data:
+            payload['title_ar'] = optional_string(data, 'title_ar')
         if 'section' in data:
             payload['section'] = _cms_section_field(data.get('section'))
-        if 'excerpt' in data:
-            payload['excerpt'] = optional_string(data, 'excerpt')
-        if 'body' in data:
-            payload['body'] = optional_string(data, 'body')
+        if 'excerpt' in data or 'excerpt_en' in data:
+            excerpt_en = optional_string(data, 'excerpt_en') if 'excerpt_en' in data else optional_string(data, 'excerpt')
+            payload['excerpt'] = excerpt_en
+            payload['excerpt_en'] = excerpt_en
+        if 'excerpt_ar' in data:
+            payload['excerpt_ar'] = optional_string(data, 'excerpt_ar')
+        if 'body' in data or 'body_en' in data:
+            body_en = optional_string(data, 'body_en') if 'body_en' in data else optional_string(data, 'body')
+            payload['body'] = body_en
+            payload['body_en'] = body_en
+        if 'body_ar' in data:
+            payload['body_ar'] = optional_string(data, 'body_ar')
         if 'image_url' in data:
             payload['image_url'] = optional_string(data, 'image_url')
         if 'cta_label' in data:
             payload['cta_label'] = optional_string(data, 'cta_label')
         if 'cta_url' in data:
             payload['cta_url'] = optional_string(data, 'cta_url')
+        if 'region_code' in data:
+            payload['region_code'] = _region_code_field(
+                data.get('region_code'),
+                allow_null=True,
+            )
         if 'metadata_json' in data:
             payload['metadata_json'] = _json_object_field(data.get('metadata_json'))
         if 'sort_order' in data:
@@ -975,13 +1364,25 @@ def _parse_cms_page_payload(*, partial: bool = False) -> dict:
         return payload
 
     payload['slug'] = _slug_field(data.get('slug'))
-    payload['title'] = required_string(data, 'title', label='Title')
+    payload['title_en'] = _localized_required_string(
+        data,
+        preferred_key='title_en',
+        fallback_key='title',
+        label='English title',
+    )
+    payload['title'] = payload['title_en']
+    payload['title_ar'] = optional_string(data, 'title_ar')
     payload['section'] = _cms_section_field(data.get('section'))
-    payload['excerpt'] = optional_string(data, 'excerpt')
-    payload['body'] = optional_string(data, 'body')
+    payload['excerpt_en'] = optional_string(data, 'excerpt_en') if 'excerpt_en' in data else optional_string(data, 'excerpt')
+    payload['excerpt'] = payload['excerpt_en']
+    payload['excerpt_ar'] = optional_string(data, 'excerpt_ar')
+    payload['body_en'] = optional_string(data, 'body_en') if 'body_en' in data else optional_string(data, 'body')
+    payload['body'] = payload['body_en']
+    payload['body_ar'] = optional_string(data, 'body_ar')
     payload['image_url'] = optional_string(data, 'image_url')
     payload['cta_label'] = optional_string(data, 'cta_label')
     payload['cta_url'] = optional_string(data, 'cta_url')
+    payload['region_code'] = _region_code_field(data.get('region_code'), allow_null=True)
     payload['metadata_json'] = _json_object_field(data.get('metadata_json'))
     payload['sort_order'] = _coerce_int(data.get('sort_order', 0), label='Sort order')
     payload['is_active'] = _bool_field(data.get('is_active'), default=True)
@@ -994,8 +1395,12 @@ def _parse_faq_payload(*, partial: bool = False) -> dict:
     if partial:
         if 'question' in data:
             payload['question'] = required_string(data, 'question', label='Question')
+        if 'question_ar' in data:
+            payload['question_ar'] = optional_string(data, 'question_ar')
         if 'answer' in data:
             payload['answer'] = required_string(data, 'answer', label='Answer')
+        if 'answer_ar' in data:
+            payload['answer_ar'] = optional_string(data, 'answer_ar')
         if 'sort_order' in data:
             payload['sort_order'] = _coerce_int(data.get('sort_order'), label='Sort order')
         if 'is_active' in data:
@@ -1003,7 +1408,9 @@ def _parse_faq_payload(*, partial: bool = False) -> dict:
         return payload
 
     payload['question'] = required_string(data, 'question', label='Question')
+    payload['question_ar'] = optional_string(data, 'question_ar')
     payload['answer'] = required_string(data, 'answer', label='Answer')
+    payload['answer_ar'] = optional_string(data, 'answer_ar')
     payload['sort_order'] = _coerce_int(data.get('sort_order', 0), label='Sort order')
     payload['is_active'] = _bool_field(data.get('is_active'), default=True)
     return payload
@@ -1015,9 +1422,12 @@ def _parse_support_settings_payload() -> dict:
         'contact_email': optional_string(data, 'contact_email'),
         'contact_phone': optional_string(data, 'contact_phone'),
         'contact_address': optional_string(data, 'contact_address'),
+        'contact_address_ar': optional_string(data, 'contact_address_ar'),
         'support_hours': optional_string(data, 'support_hours'),
+        'support_hours_ar': optional_string(data, 'support_hours_ar'),
         'whatsapp_number': optional_string(data, 'whatsapp_number'),
         'whatsapp_label': optional_string(data, 'whatsapp_label'),
+        'whatsapp_label_ar': optional_string(data, 'whatsapp_label_ar'),
         'payment_cod_enabled': _bool_field(data.get('payment_cod_enabled'), default=True),
         'payment_card_enabled': _bool_field(data.get('payment_card_enabled'), default=False),
         'payment_bank_transfer_enabled': _bool_field(data.get('payment_bank_transfer_enabled'), default=False),
@@ -1038,14 +1448,41 @@ def _parse_offer_payload(*, partial: bool = False) -> dict:
     data = get_json_body()
     payload: dict = {}
     if partial:
-        if 'title' in data:
-            payload['title'] = required_string(data, 'title', label='Title')
-        if 'subtitle' in data:
-            payload['subtitle'] = optional_string(data, 'subtitle')
-        if 'description' in data:
-            payload['description'] = optional_string(data, 'description')
+        if 'title' in data or 'title_en' in data:
+            title_en = _localized_required_string(
+                data,
+                preferred_key='title_en',
+                fallback_key='title',
+                label='English title',
+            )
+            payload['title'] = title_en
+            payload['title_en'] = title_en
+        if 'title_ar' in data:
+            payload['title_ar'] = optional_string(data, 'title_ar')
+        if 'subtitle' in data or 'subtitle_en' in data:
+            subtitle_en = optional_string(data, 'subtitle_en') if 'subtitle_en' in data else optional_string(data, 'subtitle')
+            payload['subtitle'] = subtitle_en
+            payload['subtitle_en'] = subtitle_en
+        if 'subtitle_ar' in data:
+            payload['subtitle_ar'] = optional_string(data, 'subtitle_ar')
+        if 'description' in data or 'description_en' in data:
+            description_en = optional_string(data, 'description_en') if 'description_en' in data else optional_string(data, 'description')
+            payload['description'] = description_en
+            payload['description_en'] = description_en
+        if 'description_ar' in data:
+            payload['description_ar'] = optional_string(data, 'description_ar')
         if 'banner_url' in data:
             payload['banner_url'] = optional_string(data, 'banner_url')
+        if 'region_code' in data:
+            payload['region_code'] = _region_code_field(
+                data.get('region_code'),
+                allow_null=True,
+            )
+        if 'currency_code' in data:
+            payload['currency_code'] = _currency_code_field(
+                data.get('currency_code'),
+                region_code=payload.get('region_code'),
+            )
         if 'discount_type' in data:
             payload['discount_type'] = optional_string(data, 'discount_type', lower=True)
         if 'discount_value' in data:
@@ -1065,10 +1502,26 @@ def _parse_offer_payload(*, partial: bool = False) -> dict:
         _validate_offer_window(payload.get('starts_at'), payload.get('ends_at'))
         return payload
 
-    payload['title'] = required_string(data, 'title', label='Title')
-    payload['subtitle'] = optional_string(data, 'subtitle')
-    payload['description'] = optional_string(data, 'description')
+    payload['title_en'] = _localized_required_string(
+        data,
+        preferred_key='title_en',
+        fallback_key='title',
+        label='English title',
+    )
+    payload['title'] = payload['title_en']
+    payload['title_ar'] = optional_string(data, 'title_ar')
+    payload['subtitle_en'] = optional_string(data, 'subtitle_en') if 'subtitle_en' in data else optional_string(data, 'subtitle')
+    payload['subtitle'] = payload['subtitle_en']
+    payload['subtitle_ar'] = optional_string(data, 'subtitle_ar')
+    payload['description_en'] = optional_string(data, 'description_en') if 'description_en' in data else optional_string(data, 'description')
+    payload['description'] = payload['description_en']
+    payload['description_ar'] = optional_string(data, 'description_ar')
     payload['banner_url'] = optional_string(data, 'banner_url')
+    payload['region_code'] = _region_code_field(data.get('region_code'), allow_null=True)
+    payload['currency_code'] = _currency_code_field(
+        data.get('currency_code'),
+        region_code=payload.get('region_code'),
+    )
     payload['discount_type'] = optional_string(data, 'discount_type', lower=True)
     payload['discount_value'] = _decimal_field(data.get('discount_value', 0), label='Discount value')
     payload['product_id'] = _existing_product_id(data.get('product_id'), allow_null=True)
@@ -1104,10 +1557,15 @@ def _parse_product_import_row(row: dict[str, str]) -> dict:
 
     payload = {
         'name': name,
+        'name_en': name,
         'name_ar': row_value('name_ar') or None,
         'short_description': row_value('short_description') or None,
+        'short_description_en': row_value('short_description') or None,
+        'short_description_ar': row_value('short_description_ar') or None,
         'description': row_value('description') or row_value('short_description') or None,
         'full_description': row_value('full_description') or None,
+        'full_description_en': row_value('full_description') or None,
+        'full_description_ar': row_value('full_description_ar') or None,
         'price': _decimal_field(row_value('price'), label='price'),
         'sale_price': _optional_decimal_field(row_value('sale_price') or None, label='sale_price'),
         'stock_qty': _coerce_int(row_value('stock') or 0, label='stock'),
@@ -1122,6 +1580,146 @@ def _parse_product_import_row(row: dict[str, str]) -> dict:
     }
     _validate_sale_price(payload.get('price'), payload.get('sale_price'))
     return payload
+
+
+def _localized_required_string(
+    data: dict,
+    *,
+    preferred_key: str,
+    fallback_key: str,
+    label: str,
+) -> str:
+    if preferred_key in data:
+        return required_string(data, preferred_key, label=label)
+    return required_string(data, fallback_key, label=label)
+
+
+def _region_code_field(value, *, allow_null: bool = False) -> str | None:
+    normalized = (str(value or '').strip().lower())
+    if not normalized:
+        if allow_null:
+            return None
+        raise ValidationError('Region code is required.')
+    if normalized not in ALLOWED_REGION_CODES:
+        raise ValidationError('Region code must be one of sa or ae.')
+    return normalized
+
+
+def _currency_code_field(value, *, region_code: str | None = None) -> str:
+    normalized = (str(value or '').strip().upper())
+    if not normalized:
+        if region_code:
+            return DEFAULT_CURRENCY_BY_REGION.get(region_code, 'SAR')
+        raise ValidationError('Currency code is required.')
+    if len(normalized) != 3:
+        raise ValidationError('Currency code must be a 3-letter ISO code.')
+    return normalized
+
+
+def _product_region_prices_field(value) -> list[dict]:
+    if value in (None, ''):
+        return []
+    if not isinstance(value, list):
+        raise ValidationError('Regional pricing must be provided as a list.')
+
+    normalized_rows: list[dict] = []
+    seen_regions: set[str] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValidationError('Each regional price must be an object.')
+        region_code = _region_code_field(item.get('region_code'))
+        if region_code in seen_regions:
+            raise ValidationError('Regional pricing can only contain one row per region.')
+        seen_regions.add(region_code)
+        price = _decimal_field(item.get('price'), label=f'{region_code} price')
+        sale_price = _optional_decimal_field(
+            item.get('sale_price'),
+            label=f'{region_code} sale price',
+        )
+        _validate_sale_price(price, sale_price)
+        normalized_rows.append(
+            {
+                'region_code': region_code,
+                'currency_code': _currency_code_field(
+                    item.get('currency_code'),
+                    region_code=region_code,
+                ),
+                'price': price,
+                'sale_price': sale_price,
+                'is_visible': _bool_field(item.get('is_visible'), default=True),
+            }
+        )
+    return normalized_rows
+
+
+def _product_branch_availability_field(value) -> list[dict]:
+    if value in (None, ''):
+        return []
+    if not isinstance(value, list):
+        raise ValidationError('Branch availability must be provided as a list.')
+
+    normalized_rows: list[dict] = []
+    seen_branch_ids: set[int] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValidationError('Each branch availability row must be an object.')
+        branch_id = _existing_branch_id(item.get('branch_id'))
+        if branch_id in seen_branch_ids:
+            raise ValidationError('Branch availability can only contain one row per branch.')
+        seen_branch_ids.add(branch_id)
+        normalized_rows.append(
+            {
+                'branch_id': branch_id,
+                'is_available': _bool_field(item.get('is_available'), default=True),
+            }
+        )
+    return normalized_rows
+
+
+def _primary_branch_id_from_availability(rows_payload: list[dict]) -> int | None:
+    for row in rows_payload:
+        if bool(row.get('is_available')):
+            return row.get('branch_id')
+    return None
+
+
+def _branch_region_settings_field(value) -> list[dict]:
+    if value in (None, ''):
+        return []
+    if not isinstance(value, list):
+        raise ValidationError('Branch region settings must be provided as a list.')
+
+    normalized_rows: list[dict] = []
+    seen_regions: set[str] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValidationError('Each branch region setting must be an object.')
+        region_code = _region_code_field(item.get('region_code'))
+        if region_code in seen_regions:
+            raise ValidationError('Branch region settings can only contain one row per region.')
+        seen_regions.add(region_code)
+        normalized_rows.append(
+            {
+                'region_code': region_code,
+                'currency_code': _currency_code_field(
+                    item.get('currency_code'),
+                    region_code=region_code,
+                ),
+                'is_visible': _bool_field(item.get('is_visible'), default=True),
+                'pickup_available': _bool_field(
+                    item.get('pickup_available'),
+                    default=True,
+                ),
+                'delivery_available': _bool_field(
+                    item.get('delivery_available'),
+                    default=True,
+                ),
+                'delivery_coverage': (
+                    str(item.get('delivery_coverage') or '').strip() or None
+                ),
+            }
+        )
+    return normalized_rows
 
 
 def _validate_sale_price(price: Decimal | None, sale_price: Decimal | None):
@@ -1261,6 +1859,8 @@ def _serialize_branch(branch: Branch, *, include_usage: bool = False):
     payload = {
         'id': branch.id,
         'name': branch.name,
+        'region_code': branch.region_code,
+        'default_currency_code': branch.default_currency_code,
         'city': branch.city,
         'address': branch.address,
         'phone': branch.phone,
@@ -1269,9 +1869,26 @@ def _serialize_branch(branch: Branch, *, include_usage: bool = False):
         'pickup_available': branch.pickup_available,
         'delivery_available': branch.delivery_available,
         'delivery_coverage': branch.delivery_coverage,
+        'region_settings': [
+            {
+                'region_code': row.region_code,
+                'currency_code': row.currency_code,
+                'is_visible': bool(row.is_visible),
+                'pickup_available': bool(row.pickup_available),
+                'delivery_available': bool(row.delivery_available),
+                'delivery_coverage': row.delivery_coverage,
+            }
+            for row in branch.region_settings
+        ],
     }
     if include_usage:
-        payload['product_count'] = Product.query.filter_by(branch_id=branch.id).count()
+        payload['product_count'] = (
+            Product.query.filter_by(branch_id=branch.id).count()
+            + ProductBranchAvailability.query.filter_by(
+                branch_id=branch.id,
+                is_available=True,
+            ).count()
+        )
         payload['order_count'] = Order.query.filter_by(branch_id=branch.id).count()
     return payload
 
@@ -1280,9 +1897,10 @@ def _serialize_category(category: Category, *, include_product_count: bool = Fal
     payload = {
         'id': category.id,
         'name': category.name,
+        'name_en': category.name_en or category.name,
         'name_ar': category.name_ar,
         'image_url': category.image_url,
-        'icon_key': icon_key_for_category(category.name),
+        'icon_key': category.icon_key or icon_key_for_category(category.name_en or category.name),
         'sort_order': category.sort_order,
         'is_active': category.is_active,
     }
@@ -1296,12 +1914,19 @@ def _serialize_cms_page(page: CmsPage):
         'id': page.id,
         'slug': page.slug,
         'title': page.title,
+        'title_en': page.title_en or page.title,
+        'title_ar': page.title_ar,
         'section': page.section,
         'excerpt': page.excerpt,
+        'excerpt_en': page.excerpt_en or page.excerpt,
+        'excerpt_ar': page.excerpt_ar,
         'body': page.body,
+        'body_en': page.body_en or page.body,
+        'body_ar': page.body_ar,
         'image_url': page.image_url,
         'cta_label': page.cta_label,
         'cta_url': page.cta_url,
+        'region_code': page.region_code,
         'metadata_json': page.metadata_json or {},
         'sort_order': page.sort_order,
         'is_active': page.is_active,
@@ -1310,11 +1935,39 @@ def _serialize_cms_page(page: CmsPage):
     }
 
 
+def _serialize_cms_page_payload(index: int, payload: dict):
+    return {
+        'id': payload.get('id', index),
+        'slug': payload.get('slug'),
+        'title': payload.get('title'),
+        'title_en': payload.get('title_en') or payload.get('title'),
+        'title_ar': payload.get('title_ar'),
+        'section': payload.get('section'),
+        'excerpt': payload.get('excerpt'),
+        'excerpt_en': payload.get('excerpt_en') or payload.get('excerpt'),
+        'excerpt_ar': payload.get('excerpt_ar'),
+        'body': payload.get('body'),
+        'body_en': payload.get('body_en') or payload.get('body'),
+        'body_ar': payload.get('body_ar'),
+        'image_url': payload.get('image_url'),
+        'cta_label': payload.get('cta_label'),
+        'cta_url': payload.get('cta_url'),
+        'region_code': payload.get('region_code'),
+        'metadata_json': payload.get('metadata_json') or {},
+        'sort_order': payload.get('sort_order', 0),
+        'is_active': payload.get('is_active', True),
+        'created_at': payload.get('created_at'),
+        'updated_at': payload.get('updated_at'),
+    }
+
+
 def _serialize_faq(faq: Faq):
     return {
         'id': faq.id,
         'question': faq.question,
+        'question_ar': faq.question_ar,
         'answer': faq.answer,
+        'answer_ar': faq.answer_ar,
         'sort_order': faq.sort_order,
         'is_active': faq.is_active,
         'created_at': faq.created_at.isoformat() if faq.created_at else None,
@@ -1328,9 +1981,12 @@ def _serialize_support_settings(settings: SupportSetting | None):
             'contact_email': None,
             'contact_phone': None,
             'contact_address': None,
+            'contact_address_ar': None,
             'support_hours': None,
+            'support_hours_ar': None,
             'whatsapp_number': None,
             'whatsapp_label': None,
+            'whatsapp_label_ar': None,
             'payment_cod_enabled': True,
             'payment_card_enabled': False,
             'payment_bank_transfer_enabled': False,
@@ -1349,9 +2005,12 @@ def _serialize_support_settings(settings: SupportSetting | None):
         'contact_email': settings.contact_email,
         'contact_phone': settings.contact_phone,
         'contact_address': settings.contact_address,
+        'contact_address_ar': settings.contact_address_ar,
         'support_hours': settings.support_hours,
+        'support_hours_ar': settings.support_hours_ar,
         'whatsapp_number': settings.whatsapp_number,
         'whatsapp_label': settings.whatsapp_label,
+        'whatsapp_label_ar': settings.whatsapp_label_ar,
         'payment_cod_enabled': bool(settings.payment_cod_enabled),
         'payment_card_enabled': bool(settings.payment_card_enabled),
         'payment_bank_transfer_enabled': bool(settings.payment_bank_transfer_enabled),
@@ -1395,6 +2054,12 @@ def _serialize_review_admin(review: Review, *, include_detail: bool = False):
 def _serialize_product(product: Product):
     category = Category.query.filter_by(id=product.category_id).first()
     branch = Branch.query.filter_by(id=product.branch_id).first() if product.branch_id else None
+    branch_map = {
+        row.id: row.name
+        for row in Branch.query.filter(
+            Branch.id.in_([item.branch_id for item in product.branch_availability])
+        ).all()
+    } if product.branch_availability else {}
     approved_reviews = Review.query.filter_by(
         product_id=product.id,
         moderation_status='approved',
@@ -1412,23 +2077,53 @@ def _serialize_product(product: Product):
     return {
         'id': product.id,
         'name': product.name,
+        'name_en': product.name_en or product.name,
         'name_ar': product.name_ar,
         'sku': product.sku,
         'short_description': product.short_description,
+        'short_description_en': product.short_description_en or product.short_description,
+        'short_description_ar': product.short_description_ar,
         'description': product.description,
         'full_description': product.full_description,
+        'full_description_en': product.full_description_en or product.full_description,
+        'full_description_ar': product.full_description_ar,
         'price': float(product.price or 0),
         'sale_price': float(product.sale_price) if product.sale_price is not None else None,
         'stock_qty': product.stock_qty,
         'pack_size': product.pack_size,
         'tags': product.tags,
         'image_url': product.resolved_image_url,
+        'primary_image_url': product.resolved_image_url,
+        'images': product.resolved_images,
         'category_id': product.category_id,
         'branch_id': product.branch_id,
         'is_featured': product.is_featured,
         'is_active': product.is_active,
         'category_name': category.name if category else None,
+        'category_name_en': (
+            category.name_en or category.name
+        ) if category else None,
+        'category_name_ar': category.name_ar if category else None,
         'branch_name': branch.name if branch else None,
+        'branch_availability': [
+            {
+                'branch_id': row.branch_id,
+                'branch_name': branch_map.get(row.branch_id),
+                'is_available': bool(row.is_available),
+            }
+            for row in product.branch_availability
+        ],
+        'available_branch_ids': product.available_branch_ids(),
+        'region_prices': [
+            {
+                'region_code': row.region_code,
+                'currency_code': row.currency_code,
+                'price': float(row.price or 0),
+                'sale_price': float(row.sale_price) if row.sale_price is not None else None,
+                'is_visible': bool(row.is_visible),
+            }
+            for row in product.region_prices
+        ],
         'average_rating': round(average_rating, 2),
         'review_count': review_count,
         'rating_distribution': rating_distribution,
@@ -1532,9 +2227,17 @@ def _serialize_offer(offer: Offer):
     return {
         'id': offer.id,
         'title': offer.title,
+        'title_en': offer.title_en or offer.title,
+        'title_ar': offer.title_ar,
         'subtitle': offer.subtitle,
+        'subtitle_en': offer.subtitle_en or offer.subtitle,
+        'subtitle_ar': offer.subtitle_ar,
         'description': offer.description,
+        'description_en': offer.description_en or offer.description,
+        'description_ar': offer.description_ar,
         'banner_url': offer.banner_url,
+        'region_code': offer.region_code,
+        'currency_code': offer.currency_code,
         'discount_type': offer.discount_type,
         'discount_value': float(offer.discount_value or 0),
         'product_id': offer.product_id,

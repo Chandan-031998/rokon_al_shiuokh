@@ -35,7 +35,40 @@ class _CategoriesPageState extends State<CategoriesPage> {
   @override
   void initState() {
     super.initState();
-    _categoriesFuture = widget.apiService.fetchCategories();
+    widget.localeController.addListener(_handleStorefrontChanged);
+    _categoriesFuture = _loadCategories();
+  }
+
+  @override
+  void didUpdateWidget(covariant CategoriesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localeController != widget.localeController) {
+      oldWidget.localeController.removeListener(_handleStorefrontChanged);
+      widget.localeController.addListener(_handleStorefrontChanged);
+      _handleStorefrontChanged();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.localeController.removeListener(_handleStorefrontChanged);
+    super.dispose();
+  }
+
+  Future<List<CategoryModel>> _loadCategories() {
+    return widget.apiService.fetchCategories(
+      language: widget.localeController.languageCode,
+      forceRefresh: true,
+    );
+  }
+
+  void _handleStorefrontChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _categoriesFuture = _loadCategories();
+    });
   }
 
   @override
@@ -57,6 +90,16 @@ class _CategoriesPageState extends State<CategoriesPage> {
               return const Padding(
                 padding: EdgeInsets.all(42),
                 child: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return ActionPanel(
+                title: l10n.t('home_categories_error_title'),
+                description: l10n.t('home_categories_error_desc'),
+                actionLabel: l10n.t('common_retry'),
+                onPressed: _handleStorefrontChanged,
+                icon: Icons.inventory_2_outlined,
               );
             }
 
@@ -110,6 +153,7 @@ class _CategoriesPageState extends State<CategoriesPage> {
                             builder: (_) => ProductListPage(
                               category: category,
                               apiService: widget.apiService,
+                              localeController: widget.localeController,
                             ),
                           ),
                         );
@@ -190,7 +234,7 @@ class _CategoryCardState extends State<_CategoryCard> {
               borderRadius: BorderRadius.circular(24),
               onTap: widget.onTap,
               onHover: (hovering) => setState(() => _hovering = hovering),
-                child: Ink(
+              child: Ink(
                 decoration: BoxDecoration(
                   gradient: AppColors.surfaceGradient,
                   borderRadius: BorderRadius.circular(24),
@@ -216,16 +260,18 @@ class _CategoryCardState extends State<_CategoryCard> {
                           color: AppColors.surfaceSoft,
                           borderRadius: BorderRadius.circular(999),
                           border: Border.all(
-                            color: AppColors.borderStrong.withValues(alpha: 0.35),
+                            color:
+                                AppColors.borderStrong.withValues(alpha: 0.35),
                           ),
                         ),
                         child: Text(
                           'ROKON AL SHIOUKH',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                color: AppColors.brown,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.7,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: AppColors.brown,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.7,
+                                  ),
                         ),
                       ),
                       SizedBox(height: titleGap),
@@ -237,7 +283,10 @@ class _CategoryCardState extends State<_CategoryCard> {
                             widget.category.localizedName(context.l10n),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
                                   fontWeight: FontWeight.w800,
                                   height: isCompact ? 1.1 : null,
                                 ),

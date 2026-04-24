@@ -101,7 +101,8 @@ class _AdminCategoriesPageState extends State<AdminCategoriesPage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', ''))),
       );
     }
   }
@@ -110,7 +111,8 @@ class _AdminCategoriesPageState extends State<AdminCategoriesPage> {
   Widget build(BuildContext context) {
     return AdminPageFrame(
       title: 'Categories',
-      subtitle: 'Maintain category names, Arabic labels, ordering, and active state.',
+      subtitle:
+          'Maintain category names, Arabic labels, ordering, and active state.',
       actions: [
         OutlinedButton.icon(
           onPressed: _load,
@@ -132,7 +134,8 @@ class _AdminCategoriesPageState extends State<AdminCategoriesPage> {
           border: Border.all(color: AppColors.border),
         ),
         child: _loading
-            ? const Center(child: Padding(
+            ? const Center(
+                child: Padding(
                 padding: EdgeInsets.all(48),
                 child: CircularProgressIndicator(),
               ))
@@ -140,8 +143,9 @@ class _AdminCategoriesPageState extends State<AdminCategoriesPage> {
                 ? _SimpleError(message: _error!, onRetry: _load)
                 : DataTable(
                     columns: const [
-                      DataColumn(label: Text('Name')),
+                      DataColumn(label: Text('English Name')),
                       DataColumn(label: Text('Arabic Name')),
+                      DataColumn(label: Text('Media / Icon')),
                       DataColumn(label: Text('Products')),
                       DataColumn(label: Text('Sort')),
                       DataColumn(label: Text('Active')),
@@ -151,13 +155,24 @@ class _AdminCategoriesPageState extends State<AdminCategoriesPage> {
                         .map(
                           (category) => DataRow(
                             cells: [
-                              DataCell(Text(category.name)),
+                              DataCell(Text(category.nameEn ?? category.name)),
                               DataCell(Text(category.nameAr ?? '-')),
+                              DataCell(
+                                Text(
+                                  (category.imageUrl ?? '').isNotEmpty
+                                      ? 'Image'
+                                      : (category.iconKey ?? '-'),
+                                ),
+                              ),
                               DataCell(Text('${category.productCount}')),
                               DataCell(Text('${category.sortOrder}')),
                               DataCell(Icon(
-                                category.isActive ? Icons.check_circle : Icons.cancel_outlined,
-                                color: category.isActive ? Colors.green : AppColors.textMuted,
+                                category.isActive
+                                    ? Icons.check_circle
+                                    : Icons.cancel_outlined,
+                                color: category.isActive
+                                    ? Colors.green
+                                    : AppColors.textMuted,
                               )),
                               DataCell(
                                 Wrap(
@@ -168,7 +183,8 @@ class _AdminCategoriesPageState extends State<AdminCategoriesPage> {
                                       icon: const Icon(Icons.edit_outlined),
                                     ),
                                     IconButton(
-                                      onPressed: () => _deleteCategory(category),
+                                      onPressed: () =>
+                                          _deleteCategory(category),
                                       icon: const Icon(Icons.delete_outline),
                                     ),
                                   ],
@@ -200,8 +216,10 @@ class _CategoryEditorDialog extends StatefulWidget {
 class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
+  late final TextEditingController _nameEnController;
   late final TextEditingController _nameArController;
   late final TextEditingController _imageUrlController;
+  late final TextEditingController _iconKeyController;
   late final TextEditingController _sortOrderController;
   bool _isActive = true;
   bool _saving = false;
@@ -211,17 +229,32 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
     super.initState();
     final category = widget.category;
     _nameController = TextEditingController(text: category?.name ?? '');
+    _nameEnController =
+        TextEditingController(text: category?.nameEn ?? category?.name ?? '');
+    _nameEnController.addListener(() {
+      final nextValue = _nameEnController.text;
+      if (_nameController.text != nextValue) {
+        _nameController.value = TextEditingValue(
+          text: nextValue,
+          selection: TextSelection.collapsed(offset: nextValue.length),
+        );
+      }
+    });
     _nameArController = TextEditingController(text: category?.nameAr ?? '');
     _imageUrlController = TextEditingController(text: category?.imageUrl ?? '');
-    _sortOrderController = TextEditingController(text: '${category?.sortOrder ?? 0}');
+    _iconKeyController = TextEditingController(text: category?.iconKey ?? '');
+    _sortOrderController =
+        TextEditingController(text: '${category?.sortOrder ?? 0}');
     _isActive = category?.isActive ?? true;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _nameEnController.dispose();
     _nameArController.dispose();
     _imageUrlController.dispose();
+    _iconKeyController.dispose();
     _sortOrderController.dispose();
     super.dispose();
   }
@@ -233,9 +266,11 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
     setState(() => _saving = true);
     try {
       final payload = {
-        'name': _nameController.text.trim(),
+        'name': _nameEnController.text.trim(),
+        'name_en': _nameEnController.text.trim(),
         'name_ar': _nameArController.text.trim(),
         'image_url': _imageUrlController.text.trim(),
+        'icon_key': _iconKeyController.text.trim(),
         'sort_order': int.parse(_sortOrderController.text.trim()),
         'is_active': _isActive,
       };
@@ -253,7 +288,8 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString().replaceFirst('Exception: ', ''))),
+        SnackBar(
+            content: Text(error.toString().replaceFirst('Exception: ', ''))),
       );
     } finally {
       if (mounted) {
@@ -274,19 +310,41 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextFormField(
+                controller: _nameEnController,
+                decoration:
+                    const InputDecoration(labelText: 'Category Name (English)'),
+                validator: (value) => (value ?? '').trim().isEmpty
+                    ? 'English name is required.'
+                    : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Name'),
-                validator: (value) => (value ?? '').trim().isEmpty ? 'Name is required.' : null,
+                decoration: const InputDecoration(
+                  labelText: 'Legacy Name Mirror',
+                  hintText:
+                      'Kept aligned with English label for existing screens',
+                ),
+                readOnly: true,
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _nameArController,
-                decoration: const InputDecoration(labelText: 'Arabic Name'),
+                decoration:
+                    const InputDecoration(labelText: 'Category Name (Arabic)'),
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: _imageUrlController,
                 decoration: const InputDecoration(labelText: 'Image URL'),
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _iconKeyController,
+                decoration: const InputDecoration(
+                  labelText: 'Icon Key',
+                  hintText: 'coffee, spices, incense',
+                ),
               ),
               const SizedBox(height: 14),
               TextFormField(

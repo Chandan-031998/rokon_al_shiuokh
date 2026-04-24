@@ -1,75 +1,97 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/extensions/localized_content.dart';
 import '../../../core/widgets/brand_logo.dart';
+import '../../../core/widgets/premium_network_image.dart';
 import '../../../localization/app_localizations.dart';
+import '../../../models/cms_page_model.dart';
 
-class LuxuryBannerSlider extends StatefulWidget {
+class LuxuryBannerSlider extends StatelessWidget {
+  final Future<List<CmsPageModel>> slidesFuture;
+  final VoidCallback onRetry;
   final VoidCallback? onBrowseProducts;
   final VoidCallback? onChangeBranch;
 
   const LuxuryBannerSlider({
     super.key,
+    required this.slidesFuture,
+    required this.onRetry,
     this.onBrowseProducts,
     this.onChangeBranch,
   });
 
   @override
-  State<LuxuryBannerSlider> createState() => _LuxuryBannerSliderState();
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<CmsPageModel>>(
+      future: slidesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _SliderStateCard(
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return _SliderStateCard(
+            child: _SliderMessage(
+              title: 'Homepage banners are unavailable',
+              description:
+                  'The storefront hero banners could not be loaded from admin-managed content.',
+              actionLabel: 'Retry',
+              onPressed: onRetry,
+            ),
+          );
+        }
+
+        final slides = (snapshot.data ?? const <CmsPageModel>[])
+            .where((page) => page.slug.isNotEmpty)
+            .toList()
+          ..sort((left, right) => left.sortOrder.compareTo(right.sortOrder));
+
+        if (slides.isEmpty) {
+          return _SliderStateCard(
+            child: _SliderMessage(
+              title: 'No homepage banners published',
+              description:
+                  'Publish active hero banners from the admin content module to populate this section.',
+              actionLabel: 'Refresh',
+              onPressed: onRetry,
+            ),
+          );
+        }
+
+        return _BannerCarousel(
+          slides: slides,
+          onBrowseProducts: onBrowseProducts,
+          onChangeBranch: onChangeBranch,
+        );
+      },
+    );
+  }
 }
 
-class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
-  static const int _slideCount = 4;
+class _BannerCarousel extends StatefulWidget {
+  final List<CmsPageModel> slides;
+  final VoidCallback? onBrowseProducts;
+  final VoidCallback? onChangeBranch;
 
+  const _BannerCarousel({
+    required this.slides,
+    this.onBrowseProducts,
+    this.onChangeBranch,
+  });
+
+  @override
+  State<_BannerCarousel> createState() => _BannerCarouselState();
+}
+
+class _BannerCarouselState extends State<_BannerCarousel> {
   late final PageController _pageController;
   Timer? _autoPlayTimer;
   int _currentIndex = 0;
-
-  List<_BannerSlideData> _slides(AppLocalizations l10n) => [
-        _BannerSlideData(
-          assetPath: 'assets/images/banner_arabic_coffee.png',
-          title: l10n.t('home_slider_title_coffee'),
-          subtitle: l10n.t('home_slider_subtitle_coffee'),
-          eyebrow: l10n.t('home_slider_eyebrow_signature'),
-          ctaLabel: l10n.t('home_slider_cta_coffee'),
-          secondaryLabel: l10n.t('home_change_branch'),
-          accent: Icons.local_cafe_outlined,
-          metric: l10n.t('home_slider_metric_coffee'),
-        ),
-        _BannerSlideData(
-          assetPath: 'assets/images/banner_spices_herbs.png',
-          title: l10n.t('home_slider_title_spices'),
-          subtitle: l10n.t('home_slider_subtitle_spices'),
-          eyebrow: l10n.t('home_slider_eyebrow_authentic'),
-          ctaLabel: l10n.t('home_slider_cta_spices'),
-          secondaryLabel: l10n.t('home_live_catalog'),
-          accent: Icons.spa_outlined,
-          metric: l10n.t('home_slider_metric_spices'),
-        ),
-        _BannerSlideData(
-          assetPath: 'assets/images/banner_attar_incense.png',
-          title: l10n.t('home_slider_title_attar'),
-          subtitle: l10n.t('home_slider_subtitle_attar'),
-          eyebrow: l10n.t('home_slider_eyebrow_essence'),
-          ctaLabel: l10n.t('home_slider_cta_attar'),
-          secondaryLabel: l10n.t('home_live_catalog'),
-          accent: Icons.auto_awesome_outlined,
-          metric: l10n.t('home_slider_metric_attar'),
-        ),
-        _BannerSlideData(
-          assetPath: 'assets/images/banner_seasonal_offers.png',
-          title: l10n.t('home_slider_title_offers'),
-          subtitle: l10n.t('home_slider_subtitle_offers'),
-          eyebrow: l10n.t('home_slider_eyebrow_limited'),
-          ctaLabel: l10n.t('home_slider_cta_offers'),
-          secondaryLabel: l10n.t('nav_offers'),
-          accent: Icons.workspace_premium_outlined,
-          metric: l10n.t('home_slider_metric_offers'),
-        ),
-      ];
 
   @override
   void initState() {
@@ -85,13 +107,27 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(covariant _BannerCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_currentIndex >= widget.slides.length) {
+      _currentIndex = 0;
+    }
+    if (oldWidget.slides.length != widget.slides.length) {
+      _startAutoplay();
+    }
+  }
+
   void _startAutoplay() {
     _autoPlayTimer?.cancel();
+    if (widget.slides.length <= 1) {
+      return;
+    }
     _autoPlayTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted || !_pageController.hasClients) {
+      if (!mounted || !_pageController.hasClients || widget.slides.isEmpty) {
         return;
       }
-      final nextIndex = (_currentIndex + 1) % _slideCount;
+      final nextIndex = (_currentIndex + 1) % widget.slides.length;
       _pageController.animateToPage(
         nextIndex,
         duration: const Duration(milliseconds: 650),
@@ -113,8 +149,6 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = context.l10n;
-    final slides = _slides(l10n);
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= 980;
     final isTablet = width >= 680;
@@ -166,13 +200,12 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
                     onPageChanged: (index) {
                       setState(() => _currentIndex = index);
                     },
-                    itemCount: slides.length,
+                    itemCount: widget.slides.length,
                     itemBuilder: (context, index) {
-                      final slide = slides[index];
-                      final isActive = index == _currentIndex;
+                      final slide = widget.slides[index];
                       return _BannerSlide(
-                        slide: slide,
-                        active: isActive,
+                        page: slide,
+                        active: index == _currentIndex,
                         isDesktop: isDesktop,
                         isTablet: isTablet,
                         isCompactMobile: isCompactMobile,
@@ -182,7 +215,7 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
                     },
                   ),
                 ),
-                if (isDesktop) ...[
+                if (isDesktop && widget.slides.length > 1) ...[
                   Positioned(
                     left: 18,
                     top: 0,
@@ -191,7 +224,8 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
                       child: _SliderArrowButton(
                         icon: Icons.arrow_back_ios_new_rounded,
                         onPressed: () => _goToPage(
-                          (_currentIndex - 1 + slides.length) % slides.length,
+                          (_currentIndex - 1 + widget.slides.length) %
+                              widget.slides.length,
                         ),
                       ),
                     ),
@@ -204,8 +238,7 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
                       child: _SliderArrowButton(
                         icon: Icons.arrow_forward_ios_rounded,
                         onPressed: () => _goToPage(
-                          (_currentIndex + 1) % slides.length,
-                        ),
+                            (_currentIndex + 1) % widget.slides.length),
                       ),
                     ),
                   ),
@@ -219,7 +252,7 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
                       Expanded(
                         child: Row(
                           children: List.generate(
-                            slides.length,
+                            widget.slides.length,
                             (index) => Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: _SliderIndicator(
@@ -232,8 +265,13 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
                       ),
                       if (isTablet)
                         _SliderInfoPill(
-                          icon: slides[_currentIndex].accent,
-                          label: slides[_currentIndex].metric,
+                          icon: Icons.workspace_premium_outlined,
+                          label: _localizedMetadata(
+                                widget.slides[_currentIndex],
+                                context.l10n,
+                                'metric',
+                              ) ??
+                              'Storefront',
                         ),
                     ],
                   ),
@@ -248,7 +286,7 @@ class _LuxuryBannerSliderState extends State<LuxuryBannerSlider> {
 }
 
 class _BannerSlide extends StatelessWidget {
-  final _BannerSlideData slide;
+  final CmsPageModel page;
   final bool active;
   final bool isDesktop;
   final bool isTablet;
@@ -257,7 +295,7 @@ class _BannerSlide extends StatelessWidget {
   final VoidCallback? onSecondaryTap;
 
   const _BannerSlide({
-    required this.slide,
+    required this.page,
     required this.active,
     required this.isDesktop,
     required this.isTablet,
@@ -268,7 +306,11 @@ class _BannerSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final contentWidth = isDesktop ? 520.0 : isTablet ? 440.0 : double.infinity;
+    final contentWidth = isDesktop
+        ? 520.0
+        : isTablet
+            ? 440.0
+            : double.infinity;
 
     return Stack(
       fit: StackFit.expand,
@@ -280,7 +322,7 @@ class _BannerSlide extends StatelessWidget {
           builder: (context, scale, child) {
             return Transform.scale(scale: scale, child: child);
           },
-          child: _BannerBackground(assetPath: slide.assetPath),
+          child: _BannerBackground(imageUrl: page.imageUrl),
         ),
         DecoratedBox(
           decoration: BoxDecoration(
@@ -337,8 +379,8 @@ class _BannerSlide extends StatelessWidget {
                     );
                   },
                   child: _SlideContent(
-                    key: ValueKey(slide.title),
-                    slide: slide,
+                    key: ValueKey(page.id),
+                    page: page,
                     isDesktop: isDesktop,
                     isCompactMobile: isCompactMobile,
                     onPrimaryTap: onPrimaryTap,
@@ -355,7 +397,7 @@ class _BannerSlide extends StatelessWidget {
 }
 
 class _SlideContent extends StatelessWidget {
-  final _BannerSlideData slide;
+  final CmsPageModel page;
   final bool isDesktop;
   final bool isCompactMobile;
   final VoidCallback? onPrimaryTap;
@@ -363,7 +405,7 @@ class _SlideContent extends StatelessWidget {
 
   const _SlideContent({
     super.key,
-    required this.slide,
+    required this.page,
     required this.isDesktop,
     required this.isCompactMobile,
     this.onPrimaryTap,
@@ -372,6 +414,7 @@ class _SlideContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final containerPadding = isDesktop ? 24.0 : (isCompactMobile ? 14.0 : 16.0);
     final eyebrowPadding = EdgeInsets.symmetric(
       horizontal: isCompactMobile ? 10 : 12,
@@ -382,6 +425,15 @@ class _SlideContent extends StatelessWidget {
     final introGap = isCompactMobile ? 12.0 : 16.0;
     final bodyGap = isCompactMobile ? 10.0 : 14.0;
     final actionGap = isCompactMobile ? 14.0 : 18.0;
+    final eyebrow =
+        _localizedMetadata(page, l10n, 'eyebrow') ?? 'Storefront Feature';
+    final subtitle =
+        (page.localizedExcerpt(l10n) ?? page.localizedBody(l10n) ?? '').trim();
+    final primaryLabel = (page.localizedCtaLabel(l10n) ?? '').trim().isNotEmpty
+        ? page.localizedCtaLabel(l10n)!.trim()
+        : 'Browse Collection';
+    final secondaryLabel =
+        _localizedMetadata(page, l10n, 'secondary_label') ?? 'Change Branch';
 
     return Container(
       padding: EdgeInsets.all(containerPadding),
@@ -413,10 +465,12 @@ class _SlideContent extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.accentLightGold.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.accentLightGold.withValues(alpha: 0.34)),
+              border: Border.all(
+                color: AppColors.accentLightGold.withValues(alpha: 0.34),
+              ),
             ),
             child: Text(
-              slide.eyebrow,
+              eyebrow,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: AppColors.accentLightGold,
                     letterSpacing: 1.8,
@@ -435,30 +489,35 @@ class _SlideContent extends StatelessWidget {
               SizedBox(width: isCompactMobile ? 10 : 12),
               Expanded(
                 child: Text(
-                  slide.title,
+                  page.localizedTitle(l10n),
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         color: AppColors.white,
                         fontSize: titleSize,
                         height: 1.06,
                       ),
                   maxLines: isCompactMobile ? 3 : null,
-                  overflow:
-                      isCompactMobile ? TextOverflow.ellipsis : TextOverflow.visible,
+                  overflow: isCompactMobile
+                      ? TextOverflow.ellipsis
+                      : TextOverflow.visible,
                 ),
               ),
             ],
           ),
-          SizedBox(height: bodyGap),
-          Text(
-            slide.subtitle,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.creamSoft,
-                  fontSize: isCompactMobile ? 15 : null,
-                  height: isCompactMobile ? 1.45 : null,
-                ),
-            maxLines: isCompactMobile ? 3 : null,
-            overflow: isCompactMobile ? TextOverflow.ellipsis : TextOverflow.visible,
-          ),
+          if (subtitle.isNotEmpty) ...[
+            SizedBox(height: bodyGap),
+            Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppColors.creamSoft,
+                    fontSize: isCompactMobile ? 15 : null,
+                    height: isCompactMobile ? 1.45 : null,
+                  ),
+              maxLines: isCompactMobile ? 3 : null,
+              overflow: isCompactMobile
+                  ? TextOverflow.ellipsis
+                  : TextOverflow.visible,
+            ),
+          ],
           SizedBox(height: actionGap),
           Wrap(
             spacing: isCompactMobile ? 10 : 12,
@@ -466,7 +525,7 @@ class _SlideContent extends StatelessWidget {
             children: [
               FilledButton(
                 onPressed: onPrimaryTap,
-                child: Text(slide.ctaLabel),
+                child: Text(primaryLabel),
               ),
               OutlinedButton(
                 onPressed: onSecondaryTap,
@@ -475,7 +534,7 @@ class _SlideContent extends StatelessWidget {
                   side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
                   backgroundColor: Colors.white.withValues(alpha: 0.06),
                 ),
-                child: Text(slide.secondaryLabel),
+                child: Text(secondaryLabel),
               ),
             ],
           ),
@@ -486,52 +545,64 @@ class _SlideContent extends StatelessWidget {
 }
 
 class _BannerBackground extends StatelessWidget {
-  final String assetPath;
+  final String? imageUrl;
 
-  const _BannerBackground({required this.assetPath});
+  const _BannerBackground({required this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      assetPath,
+    final resolvedImageUrl = (imageUrl ?? '').trim();
+    if (resolvedImageUrl.isEmpty) {
+      return const _BannerBackgroundFallback();
+    }
+
+    return PremiumNetworkImage(
+      imageUrl: resolvedImageUrl,
+      borderRadius: BorderRadius.zero,
       fit: BoxFit.cover,
-      filterQuality: FilterQuality.medium,
-      errorBuilder: (context, error, stackTrace) {
-        return DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: AppColors.heroGradient,
+      transformWidth: 2200,
+      transformQuality: 86,
+      fallbackIcon: Icons.image_outlined,
+    );
+  }
+}
+
+class _BannerBackgroundFallback extends StatelessWidget {
+  const _BannerBackgroundFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(gradient: AppColors.heroGradient),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const Positioned(
+            top: -50,
+            right: -30,
+            child: _FallbackGlow(size: 180),
           ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              const Positioned(
-                top: -50,
-                right: -30,
-                child: _FallbackGlow(size: 180),
-              ),
-              const Positioned(
-                bottom: -60,
-                left: -20,
-                child: _FallbackGlow(size: 160),
-              ),
-              Center(
-                child: Opacity(
-                  opacity: 0.22,
-                  child: Transform.scale(
-                    scale: kIsWeb ? 1.4 : 1.15,
-                    child: const BrandLogo(
-                      size: 120,
-                      padding: EdgeInsets.all(2),
-                      showShadow: false,
-                      transparentHighlight: true,
-                    ),
-                  ),
+          const Positioned(
+            bottom: -60,
+            left: -20,
+            child: _FallbackGlow(size: 160),
+          ),
+          Center(
+            child: Opacity(
+              opacity: 0.22,
+              child: Transform.scale(
+                scale: 1.2,
+                child: const BrandLogo(
+                  size: 120,
+                  padding: EdgeInsets.all(2),
+                  showShadow: false,
+                  transparentHighlight: true,
                 ),
               ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }
@@ -618,9 +689,7 @@ class _SliderIndicator extends StatelessWidget {
         height: 10,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
-          gradient: active
-              ? AppColors.goldGradient
-              : null,
+          gradient: active ? AppColors.goldGradient : null,
           color: active ? null : Colors.white.withValues(alpha: 0.36),
           border: active
               ? null
@@ -666,24 +735,107 @@ class _SliderInfoPill extends StatelessWidget {
   }
 }
 
-class _BannerSlideData {
-  final String assetPath;
-  final String title;
-  final String subtitle;
-  final String eyebrow;
-  final String ctaLabel;
-  final String secondaryLabel;
-  final IconData accent;
-  final String metric;
+class _SliderStateCard extends StatelessWidget {
+  final Widget child;
 
-  const _BannerSlideData({
-    required this.assetPath,
+  const _SliderStateCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 340,
+      margin: const EdgeInsets.fromLTRB(24, 0, 24, 10),
+      decoration: BoxDecoration(
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: AppColors.strongShadow,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _SliderMessage extends StatelessWidget {
+  final String title;
+  final String description;
+  final String actionLabel;
+  final VoidCallback onPressed;
+
+  const _SliderMessage({
     required this.title,
-    required this.subtitle,
-    required this.eyebrow,
-    required this.ctaLabel,
-    required this.secondaryLabel,
-    required this.accent,
-    required this.metric,
+    required this.description,
+    required this.actionLabel,
+    required this.onPressed,
   });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  description,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.creamSoft,
+                        height: 1.6,
+                      ),
+                ),
+                const SizedBox(height: 18),
+                FilledButton(
+                  onPressed: onPressed,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.creamSoft,
+                    foregroundColor: AppColors.brownDeep,
+                  ),
+                  child: Text(actionLabel),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String? _localizedMetadata(
+  CmsPageModel page,
+  AppLocalizations l10n,
+  String key,
+) {
+  final metadata = page.metadataJson;
+  if (l10n.isArabic) {
+    final arabic = metadata['${key}_ar']?.toString().trim();
+    if (arabic != null && arabic.isNotEmpty) {
+      return arabic;
+    }
+  }
+
+  final value = metadata[key]?.toString().trim();
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  return value;
 }

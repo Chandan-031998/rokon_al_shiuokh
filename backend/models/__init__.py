@@ -2,6 +2,9 @@ from .user import User
 from .branch import Branch
 from .category import Category
 from .product import Product
+from .product_branch_availability import ProductBranchAvailability
+from .product_region_price import ProductRegionPrice
+from .product_image import ProductImage
 from .address import Address
 from .cart_item import CartItem
 from .order import Order
@@ -17,3 +20,4 @@ from .filter_group import FilterGroup
 from .filter_value import FilterValue
 from .category_filter_group_map import CategoryFilterGroupMap
 from .product_filter_map import ProductFilterMap
+from .branch_region_setting import BranchRegionSetting

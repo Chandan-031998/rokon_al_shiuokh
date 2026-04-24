@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/localized_content.dart';
 import '../../core/widgets/brand_logo.dart';
-import '../../core/widgets/language_toggle.dart';
 import '../../core/widgets/premium_network_image.dart';
 import '../../core/widgets/product_card.dart';
 import '../../core/widgets/section_title.dart';
+import '../../core/widgets/storefront_switcher.dart';
 import '../../localization/app_locale_controller.dart';
 import '../../localization/app_localizations.dart';
 import '../../models/branch_model.dart';
@@ -55,10 +55,13 @@ class _HomePageState extends State<HomePage> {
   final _featuredKey = GlobalKey();
   final _offersKey = GlobalKey();
   final _footerKey = GlobalKey();
+  late Future<List<CmsPageModel>> _heroBannersFuture;
   late Future<List<CategoryModel>> _categoriesFuture;
   late Future<List<ProductModel>> _featuredProductsFuture;
   late Future<List<BranchModel>> _branchesFuture;
   late Future<List<OfferModel>> _offersFuture;
+  late Future<List<CmsPageModel>> _homeSectionBannersFuture;
+  late Future<List<CmsPageModel>> _marketingCardsFuture;
   late Future<List<CmsPageModel>> _deliveryBlocksFuture;
   late Future<SupportSettingsModel> _supportSettingsFuture;
   int? _selectedBranchId;
@@ -67,12 +70,18 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    widget.localeController.addListener(_handleStorefrontChanged);
     _loadHomeContent();
   }
 
   @override
   void didUpdateWidget(covariant HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.localeController != widget.localeController) {
+      oldWidget.localeController.removeListener(_handleStorefrontChanged);
+      widget.localeController.addListener(_handleStorefrontChanged);
+      _handleStorefrontChanged();
+    }
     if (widget.sectionRequestId != oldWidget.sectionRequestId) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToSection(widget.requestedSection);
@@ -82,38 +91,74 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    widget.localeController.removeListener(_handleStorefrontChanged);
     _scrollController.dispose();
     super.dispose();
   }
 
+  void _handleStorefrontChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _selectedBranchId = null;
+      _loadHomeContent();
+    });
+  }
+
   void _loadHomeContent() {
-    _categoriesFuture = widget.apiService.fetchCategories();
-    _featuredProductsFuture = widget.apiService.fetchFeaturedProducts();
-    _branchesFuture = widget.apiService.fetchBranches();
-    _offersFuture = widget.apiService.fetchOffers();
-    _deliveryBlocksFuture =
-        widget.apiService.fetchCmsPages(section: 'delivery_information');
-    _supportSettingsFuture = widget.apiService.fetchSupportSettings();
+    final language = widget.localeController.languageCode;
+    final regionCode = widget.localeController.regionCode;
+    _heroBannersFuture = widget.apiService.fetchCmsPages(
+      section: 'hero_banner',
+      language: language,
+      regionCode: regionCode,
+    );
+    _categoriesFuture = widget.apiService.fetchCategories(language: language);
+    _featuredProductsFuture = widget.apiService.fetchFeaturedProducts(
+      language: language,
+      regionCode: regionCode,
+    );
+    _branchesFuture = widget.apiService.fetchBranches(regionCode: regionCode);
+    _offersFuture = widget.apiService.fetchOffers(
+      language: language,
+      regionCode: regionCode,
+    );
+    _homeSectionBannersFuture = widget.apiService.fetchCmsPages(
+      section: 'home_section_banner',
+      language: language,
+      regionCode: regionCode,
+    );
+    _marketingCardsFuture = widget.apiService.fetchCmsPages(
+      section: 'marketing_card',
+      language: language,
+      regionCode: regionCode,
+    );
+    _deliveryBlocksFuture = widget.apiService.fetchCmsPages(
+      section: 'delivery_information',
+      language: language,
+      regionCode: regionCode,
+    );
+    _supportSettingsFuture = widget.apiService.fetchSupportSettings(
+      language: language,
+      regionCode: regionCode,
+    );
   }
 
   Future<void> _refreshHomeContent() async {
     setState(() {
       widget.apiService.clearPublicCatalogCache();
-      _categoriesFuture = widget.apiService.fetchCategories(forceRefresh: true);
-      _featuredProductsFuture =
-          widget.apiService.fetchFeaturedProducts(forceRefresh: true);
-      _branchesFuture = widget.apiService.fetchBranches(forceRefresh: true);
-      _offersFuture = widget.apiService.fetchOffers();
-      _deliveryBlocksFuture =
-          widget.apiService.fetchCmsPages(section: 'delivery_information');
-      _supportSettingsFuture = widget.apiService.fetchSupportSettings();
+      _loadHomeContent();
     });
     try {
       await Future.wait([
+        _heroBannersFuture,
         _categoriesFuture,
         _featuredProductsFuture,
         _branchesFuture,
         _offersFuture,
+        _homeSectionBannersFuture,
+        _marketingCardsFuture,
         _deliveryBlocksFuture,
         _supportSettingsFuture,
       ]);
@@ -164,8 +209,14 @@ class _HomePageState extends State<HomePage> {
         SnackBar(
           content: Text(
             isFavorite
-                ? 'Removed ${product.localizedName(context.l10n)} from wishlist.'
-                : 'Saved ${product.localizedName(context.l10n)} to wishlist.',
+                ? context.l10n.t(
+                    'discovery_wishlist_removed',
+                    {'name': product.localizedName(context.l10n)},
+                  )
+                : context.l10n.t(
+                    'discovery_wishlist_saved',
+                    {'name': product.localizedName(context.l10n)},
+                  ),
           ),
         ),
       );
@@ -174,9 +225,7 @@ class _HomePageState extends State<HomePage> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to update wishlist right now.'),
-        ),
+        SnackBar(content: Text(context.l10n.t('discovery_wishlist_error'))),
       );
     }
   }
@@ -204,40 +253,47 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final isWide = MediaQuery.sizeOf(context).width >= 980;
+    final isCompactAppBar = MediaQuery.sizeOf(context).width < 560;
 
     return Scaffold(
       appBar: widget.showAppBar
           ? AppBar(
               toolbarHeight: 82,
               title: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const BrandLogo(
-                    size: 56,
+                  BrandLogo(
+                    size: isCompactAppBar ? 46 : 56,
                     padding: EdgeInsets.zero,
                     showShadow: false,
                     transparentHighlight: false,
                   ),
-                  const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        l10n.t('app_title'),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontSize: 19,
-                            ),
-                      ),
-                      Text(
-                        l10n.t('brand_tagline'),
-                        style:
-                            Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  color: AppColors.goldMuted,
-                                  letterSpacing: 0.6,
-                                ),
-                      ),
-                    ],
+                  SizedBox(width: isCompactAppBar ? 10 : 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          l10n.t('app_title'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontSize: isCompactAppBar ? 17 : 19,
+                                  ),
+                        ),
+                        Text(
+                          l10n.t('brand_tagline'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.labelMedium?.copyWith(
+                                    color: AppColors.goldMuted,
+                                    letterSpacing: 0.6,
+                                  ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -245,9 +301,8 @@ class _HomePageState extends State<HomePage> {
                 Padding(
                   padding: const EdgeInsetsDirectional.only(end: 16),
                   child: Center(
-                    child: LanguageToggle(
+                    child: StorefrontSwitcher(
                       controller: widget.localeController,
-                      compact: true,
                     ),
                   ),
                 ),
@@ -278,6 +333,8 @@ class _HomePageState extends State<HomePage> {
                     KeyedSubtree(
                       key: _heroKey,
                       child: LuxuryBannerSlider(
+                        slidesFuture: _heroBannersFuture,
+                        onRetry: _refreshHomeContent,
                         onBrowseProducts: widget.onBrowseProducts,
                         onChangeBranch: widget.onChangeBranch,
                       ),
@@ -290,7 +347,14 @@ class _HomePageState extends State<HomePage> {
                     _CategorySection(
                       categoriesFuture: _categoriesFuture,
                       apiService: widget.apiService,
+                      localeController: widget.localeController,
                       onRetry: _refreshHomeContent,
+                    ),
+                    _CmsBannerStripSection(
+                      pagesFuture: _homeSectionBannersFuture,
+                      fallbackActionLabel: l10n.t('categories_view_collection'),
+                      onRetry: _refreshHomeContent,
+                      onPageTap: _handleCmsPageAction,
                     ),
                     KeyedSubtree(
                       key: _featuredKey,
@@ -299,6 +363,9 @@ class _HomePageState extends State<HomePage> {
                     ),
                     _FeaturedSection(
                       featuredProductsFuture: _featuredProductsFuture,
+                      regionCode: widget.localeController.regionCode,
+                      fallbackCurrencyCode:
+                          widget.localeController.currencyCode,
                       onAddToCart: _handleAddToCart,
                       onProductTap: _openProductDetails,
                       onToggleWishlist: _toggleWishlist,
@@ -310,9 +377,17 @@ class _HomePageState extends State<HomePage> {
                     ),
                     _OfferSection(
                       offersFuture: _offersFuture,
-                      featuredProductsFuture: _featuredProductsFuture,
+                      regionCode: widget.localeController.regionCode,
+                      fallbackCurrencyCode:
+                          widget.localeController.currencyCode,
                       onRetry: _refreshHomeContent,
                       onOfferTap: _openOfferDestination,
+                    ),
+                    _CmsMarketingSection(
+                      pagesFuture: _marketingCardsFuture,
+                      fallbackActionLabel: l10n.t('offers_shop_now'),
+                      onRetry: _refreshHomeContent,
+                      onPageTap: _handleCmsPageAction,
                     ),
                     SectionTitle(title: l10n.t('home_branch_selection')),
                     _BranchSection(
@@ -389,7 +464,11 @@ class _HomePageState extends State<HomePage> {
   Future<void> _openOfferDestination(OfferModel offer) async {
     if (offer.productId != null) {
       try {
-        final detail = await widget.apiService.fetchProductDetail(offer.productId!);
+        final detail = await widget.apiService.fetchProductDetail(
+          offer.productId!,
+          language: widget.localeController.languageCode,
+          regionCode: widget.localeController.regionCode,
+        );
         final branches = await _branchesFuture;
         if (!mounted) {
           return;
@@ -400,6 +479,7 @@ class _HomePageState extends State<HomePage> {
               product: detail.product,
               branches: branches,
               apiService: widget.apiService,
+              localeController: widget.localeController,
             ),
           ),
         );
@@ -425,6 +505,7 @@ class _HomePageState extends State<HomePage> {
             builder: (_) => ProductListPage(
               category: resolvedCategory,
               apiService: widget.apiService,
+              localeController: widget.localeController,
             ),
           ),
         );
@@ -436,11 +517,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'This offer is not linked to an available product or category yet.',
-        ),
-      ),
+      SnackBar(content: Text(context.l10n.t('home_offer_unavailable'))),
     );
   }
 
@@ -455,7 +532,597 @@ class _HomePageState extends State<HomePage> {
           product: product,
           branches: branches,
           apiService: widget.apiService,
+          localeController: widget.localeController,
         ),
+      ),
+    );
+  }
+
+  Future<void> _handleCmsPageAction(CmsPageModel page) async {
+    final target = (page.ctaUrl ?? '').trim().toLowerCase();
+    if (target.contains('offers')) {
+      await _scrollToSection(HomeSection.offers);
+      return;
+    }
+    if (target.contains('branch')) {
+      widget.onChangeBranch?.call();
+      return;
+    }
+    if (target.contains('featured')) {
+      await _scrollToSection(HomeSection.featured);
+      return;
+    }
+
+    widget.onBrowseProducts?.call();
+  }
+}
+
+class _CmsBannerStripSection extends StatelessWidget {
+  final Future<List<CmsPageModel>> pagesFuture;
+  final String fallbackActionLabel;
+  final Future<void> Function() onRetry;
+  final Future<void> Function(CmsPageModel page) onPageTap;
+
+  const _CmsBannerStripSection({
+    required this.pagesFuture,
+    required this.fallbackActionLabel,
+    required this.onRetry,
+    required this.onPageTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<CmsPageModel>>(
+      future: pagesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _SectionLoading(height: 220);
+        }
+
+        if (snapshot.hasError) {
+          return _SectionMessageCard(
+            title: context.l10n.t('offers_error_title'),
+            description: context.l10n.t('offers_error_desc'),
+            actionLabel: context.l10n.t('common_retry'),
+            onPressed: onRetry,
+          );
+        }
+
+        final pages = snapshot.data ?? const <CmsPageModel>[];
+        if (pages.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontalPadding = constraints.maxWidth < 520 ? 16.0 : 20.0;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                0,
+                horizontalPadding,
+                16,
+              ),
+              child: Column(
+                children: [
+                  for (final entry in pages.asMap().entries) ...[
+                    _CmsBannerCard(
+                      page: entry.value,
+                      fallbackActionLabel: fallbackActionLabel,
+                      onTap: () => onPageTap(entry.value),
+                    ),
+                    if (entry.key < pages.length - 1)
+                      const SizedBox(height: 16),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CmsBannerCard extends StatelessWidget {
+  final CmsPageModel page;
+  final String fallbackActionLabel;
+  final VoidCallback onTap;
+
+  const _CmsBannerCard({
+    required this.page,
+    required this.fallbackActionLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final title = page.localizedTitle(l10n);
+    final subtitle = page.localizedExcerpt(l10n) ?? '';
+    final body = page.localizedBody(l10n) ?? '';
+    final actionLabel = (page.localizedCtaLabel(l10n) ?? '').trim().isNotEmpty
+        ? page.localizedCtaLabel(l10n)!.trim()
+        : fallbackActionLabel;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFBF7), AppColors.white, Color(0xFFF8EFE2)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppColors.softShadow,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          final stacked = constraints.maxWidth < 760;
+          if (compact) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.creamSoft,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            'ROKON AL SHIOUKH',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: AppColors.brown,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.brownDeep,
+                                  ),
+                        ),
+                        if (subtitle.trim().isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            subtitle,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.textMuted,
+                                  height: 1.45,
+                                ),
+                          ),
+                        ] else if (body.trim().isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            body,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.textDark,
+                                  height: 1.45,
+                                ),
+                          ),
+                        ],
+                        const SizedBox(height: 14),
+                        FilledButton(
+                          onPressed: onTap,
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
+                          ),
+                          child: Text(actionLabel),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Center(
+                    child: SizedBox(
+                      width: 116,
+                      child: AspectRatio(
+                        aspectRatio: 0.88,
+                        child: PremiumNetworkImage(
+                          imageUrl: page.imageUrl,
+                          transformWidth: 720,
+                          transformQuality: 82,
+                          borderRadius: BorderRadius.circular(20),
+                          fallbackIcon: Icons.auto_awesome,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final content = Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              24,
+              24,
+              stacked ? 24 : 22,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.creamSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'ROKON AL SHIOUKH',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppColors.brown,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  title,
+                  maxLines: stacked ? 3 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.brownDeep,
+                      ),
+                ),
+                if (subtitle.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    subtitle,
+                    maxLines: stacked ? 3 : 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.textMuted,
+                          height: 1.5,
+                        ),
+                  ),
+                ],
+                if (body.trim().isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    body,
+                    maxLines: stacked ? 4 : 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textDark,
+                          height: 1.55,
+                        ),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                FilledButton(
+                  onPressed: onTap,
+                  child: Text(actionLabel),
+                ),
+              ],
+            ),
+          );
+          final image = Padding(
+            padding: EdgeInsets.fromLTRB(
+              stacked ? 24 : 0,
+              stacked ? 0 : 16,
+              24,
+              24,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: stacked ? 420 : double.infinity,
+                ),
+                child: AspectRatio(
+                  aspectRatio: stacked ? 16 / 9 : 1.2,
+                  child: PremiumNetworkImage(
+                    imageUrl: page.imageUrl,
+                    transformWidth: stacked ? 1080 : 960,
+                    transformQuality: 84,
+                    borderRadius: BorderRadius.circular(22),
+                    fallbackIcon: Icons.auto_awesome,
+                  ),
+                ),
+              ),
+            ),
+          );
+
+          if (stacked) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [image, content],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(flex: 6, child: content),
+              Expanded(flex: 5, child: image),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _CmsMarketingSection extends StatelessWidget {
+  final Future<List<CmsPageModel>> pagesFuture;
+  final String fallbackActionLabel;
+  final Future<void> Function() onRetry;
+  final Future<void> Function(CmsPageModel page) onPageTap;
+
+  const _CmsMarketingSection({
+    required this.pagesFuture,
+    required this.fallbackActionLabel,
+    required this.onRetry,
+    required this.onPageTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<CmsPageModel>>(
+      future: pagesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _SectionLoading(height: 220);
+        }
+
+        if (snapshot.hasError) {
+          return _SectionMessageCard(
+            title: context.l10n.t('offers_error_title'),
+            description: context.l10n.t('offers_error_desc'),
+            actionLabel: context.l10n.t('common_retry'),
+            onPressed: onRetry,
+          );
+        }
+
+        final pages = snapshot.data ?? const <CmsPageModel>[];
+        if (pages.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final preferredCrossAxisCount = width >= 1180
+                ? 3
+                : width >= 760
+                    ? 2
+                    : 1;
+            final crossAxisCount = pages.length < preferredCrossAxisCount
+                ? pages.length
+                : preferredCrossAxisCount;
+            if (crossAxisCount <= 1) {
+              return Padding(
+                padding: EdgeInsets.fromLTRB(
+                  width < 520 ? 16 : 20,
+                  0,
+                  width < 520 ? 16 : 20,
+                  12,
+                ),
+                child: Column(
+                  children: [
+                    for (final entry in pages.asMap().entries) ...[
+                      _MarketingCmsCard(
+                        page: entry.value,
+                        fallbackActionLabel: fallbackActionLabel,
+                        onTap: () => onPageTap(entry.value),
+                      ),
+                      if (entry.key < pages.length - 1)
+                        const SizedBox(height: 18),
+                    ],
+                  ],
+                ),
+              );
+            }
+
+            return GridView.builder(
+              padding: EdgeInsets.fromLTRB(
+                width < 520 ? 16 : 20,
+                0,
+                width < 520 ? 16 : 20,
+                12,
+              ),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                mainAxisSpacing: 18,
+                crossAxisSpacing: 18,
+                mainAxisExtent: width >= 1180 ? 338 : 356,
+              ),
+              itemCount: pages.length,
+              itemBuilder: (context, index) => _MarketingCmsCard(
+                page: pages[index],
+                fallbackActionLabel: fallbackActionLabel,
+                onTap: () => onPageTap(pages[index]),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _MarketingCmsCard extends StatelessWidget {
+  final CmsPageModel page;
+  final String fallbackActionLabel;
+  final VoidCallback onTap;
+
+  const _MarketingCmsCard({
+    required this.page,
+    required this.fallbackActionLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final subtitle = page.localizedExcerpt(l10n) ?? '';
+    final body = page.localizedBody(l10n) ?? '';
+    final actionLabel = (page.localizedCtaLabel(l10n) ?? '').trim().isNotEmpty
+        ? page.localizedCtaLabel(l10n)!.trim()
+        : fallbackActionLabel;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2F1C14), AppColors.brownDeep, Color(0xFF735131)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0x2DFFF5E9)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1F2D1A12),
+            blurRadius: 22,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 380;
+          final veryCompact = constraints.maxWidth < 520;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if ((page.imageUrl ?? '').trim().isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: ColoredBox(
+                    color: AppColors.brownDeep.withValues(alpha: 0.28),
+                    child: AspectRatio(
+                      aspectRatio: compact ? 16 / 9 : 2.4,
+                      child: PremiumNetworkImage(
+                        imageUrl: page.imageUrl,
+                        transformWidth: compact ? 960 : 1320,
+                        transformQuality: 86,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                        borderRadius: BorderRadius.circular(20),
+                        fallbackIcon: Icons.campaign_outlined,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  height: compact ? 86 : 96,
+                  decoration: BoxDecoration(
+                    color: AppColors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: AppColors.creamSoft,
+                    size: 28,
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Text(
+                page.localizedTitle(l10n),
+                maxLines: veryCompact
+                    ? 2
+                    : compact
+                        ? 3
+                        : 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: AppColors.creamSoft,
+                      fontWeight: FontWeight.w800,
+                      fontSize: veryCompact ? 18 : null,
+                    ),
+              ),
+              if (subtitle.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  subtitle,
+                  maxLines: veryCompact
+                      ? 2
+                      : compact
+                          ? 3
+                          : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.creamSoft.withValues(alpha: 0.9),
+                      ),
+                ),
+              ],
+              if (body.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  body,
+                  maxLines: veryCompact
+                      ? 2
+                      : compact
+                          ? 4
+                          : 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.creamSoft.withValues(alpha: 0.82),
+                        height: 1.5,
+                      ),
+                ),
+              ],
+              const SizedBox(height: 18),
+              FilledButton(
+                onPressed: onTap,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.creamSoft,
+                  foregroundColor: AppColors.brownDeep,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: veryCompact ? 18 : 20,
+                    vertical: 12,
+                  ),
+                ),
+                child: Text(actionLabel),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -464,11 +1131,13 @@ class _HomePageState extends State<HomePage> {
 class _CategorySection extends StatelessWidget {
   final Future<List<CategoryModel>> categoriesFuture;
   final ApiService apiService;
+  final AppLocaleController localeController;
   final Future<void> Function() onRetry;
 
   const _CategorySection({
     required this.categoriesFuture,
     required this.apiService,
+    required this.localeController,
     required this.onRetry,
   });
 
@@ -544,6 +1213,7 @@ class _CategorySection extends StatelessWidget {
                         builder: (_) => ProductListPage(
                           category: category,
                           apiService: apiService,
+                          localeController: localeController,
                         ),
                       ),
                     );
@@ -656,6 +1326,8 @@ class _HomeCategoryCardState extends State<_HomeCategoryCard> {
 
 class _FeaturedSection extends StatelessWidget {
   final Future<List<ProductModel>> featuredProductsFuture;
+  final String regionCode;
+  final String fallbackCurrencyCode;
   final Future<void> Function(ProductModel product) onAddToCart;
   final Future<void> Function(ProductModel product) onProductTap;
   final Future<void> Function(ProductModel product) onToggleWishlist;
@@ -663,6 +1335,8 @@ class _FeaturedSection extends StatelessWidget {
 
   const _FeaturedSection({
     required this.featuredProductsFuture,
+    required this.regionCode,
+    required this.fallbackCurrencyCode,
     required this.onAddToCart,
     required this.onProductTap,
     required this.onToggleWishlist,
@@ -731,9 +1405,36 @@ class _FeaturedSection extends StatelessWidget {
                   builder: (context, wishlistIds, _) {
                     return ProductCard(
                       name: product.localizedName(l10n),
-                      subtitle: _productSubtitle(product, l10n),
-                      price: 'SAR ${product.effectivePrice.toStringAsFixed(0)}',
+                      arabicTitle: l10n.isArabic
+                          ? null
+                          : (product.nameAr ?? '').trim().isNotEmpty
+                              ? product.nameAr
+                              : null,
+                      subtitle: _productCardSummary(product, l10n),
+                      price: _formatCurrency(
+                        product.effectivePrice,
+                        product.currencyCodeForRegion(
+                          regionCode,
+                          fallback: fallbackCurrencyCode,
+                        ),
+                      ),
+                      originalPrice: product.salePrice != null &&
+                              product.salePrice! < product.price
+                          ? _formatCurrency(
+                              product.price,
+                              product.currencyCodeForRegion(
+                                regionCode,
+                                fallback: fallbackCurrencyCode,
+                              ),
+                            )
+                          : null,
                       imageUrl: product.imageUrl,
+                      branchLabel: product.branchName ??
+                          l10n.t('product_branch_selected'),
+                      averageRating: product.averageRating,
+                      reviewCount: product.reviewCount,
+                      isFeatured: product.isFeatured,
+                      stockQty: product.stockQty,
                       isFavorite: wishlistIds.contains(product.id),
                       onFavoriteToggle: () => onToggleWishlist(product),
                       onAddToCart: () => onAddToCart(product),
@@ -761,13 +1462,15 @@ extension on ProductModel {
 
 class _OfferSection extends StatelessWidget {
   final Future<List<OfferModel>> offersFuture;
-  final Future<List<ProductModel>> featuredProductsFuture;
+  final String regionCode;
+  final String fallbackCurrencyCode;
   final Future<void> Function(OfferModel offer) onOfferTap;
   final Future<void> Function() onRetry;
 
   const _OfferSection({
     required this.offersFuture,
-    required this.featuredProductsFuture,
+    required this.regionCode,
+    required this.fallbackCurrencyCode,
     required this.onOfferTap,
     required this.onRetry,
   });
@@ -783,67 +1486,27 @@ class _OfferSection extends StatelessWidget {
 
         if (snapshot.hasError) {
           return _SectionMessageCard(
-            title: 'Offers are unavailable right now',
-            description:
-                'The latest campaign banners could not be loaded. Retry to refresh the active offers.',
-            actionLabel: 'Retry',
+            title: context.l10n.t('offers_error_title'),
+            description: context.l10n.t('offers_error_desc'),
+            actionLabel: context.l10n.t('common_retry'),
             onPressed: onRetry,
           );
         }
 
         final offers = snapshot.data ?? const <OfferModel>[];
         if (offers.isEmpty) {
-          return FutureBuilder<List<ProductModel>>(
-            future: featuredProductsFuture,
-            builder: (context, featuredSnapshot) {
-              final featuredProducts =
-                  featuredSnapshot.data ?? const <ProductModel>[];
-              final saleProducts = featuredProducts
-                  .where(
-                    (product) =>
-                        product.salePrice != null &&
-                        product.salePrice! > 0 &&
-                        product.salePrice! < product.price,
-                  )
-                  .toList();
-              if (saleProducts.isEmpty) {
-                return _SectionMessageCard(
-                  title: 'No active offers yet',
-                  description:
-                      'Promotions created from the admin panel will appear here automatically.',
-                  actionLabel: 'Retry',
-                  onPressed: onRetry,
-                );
-              }
-
-              return _OfferGrid(
-                offers: saleProducts
-                    .map(
-                      (product) => OfferModel(
-                        id: product.id,
-                        title: product.localizedName(context.l10n),
-                        subtitle: product.shortDescription,
-                        description:
-                            product.fullDescription ?? product.description,
-                        bannerUrl: product.imageUrl,
-                        discountType: 'product',
-                        discountValue:
-                            product.price - (product.salePrice ?? product.price),
-                        productId: product.id,
-                        categoryId: product.categoryId,
-                        branchId: product.branchId,
-                        isActive: true,
-                      ),
-                    )
-                    .toList(),
-                onOfferTap: onOfferTap,
-              );
-            },
+          return _SectionMessageCard(
+            title: context.l10n.t('offers_empty_title'),
+            description: context.l10n.t('offers_empty_desc'),
+            actionLabel: context.l10n.t('common_retry'),
+            onPressed: onRetry,
           );
         }
 
         return _OfferGrid(
           offers: offers,
+          regionCode: regionCode,
+          fallbackCurrencyCode: fallbackCurrencyCode,
           onOfferTap: onOfferTap,
         );
       },
@@ -853,10 +1516,14 @@ class _OfferSection extends StatelessWidget {
 
 class _OfferGrid extends StatelessWidget {
   final List<OfferModel> offers;
+  final String regionCode;
+  final String fallbackCurrencyCode;
   final Future<void> Function(OfferModel offer) onOfferTap;
 
   const _OfferGrid({
     required this.offers,
+    required this.regionCode,
+    required this.fallbackCurrencyCode,
     required this.onOfferTap,
   });
 
@@ -886,6 +1553,8 @@ class _OfferGrid extends StatelessWidget {
           itemBuilder: (context, index) {
             return _OfferCard(
               offer: visibleOffers[index],
+              regionCode: regionCode,
+              fallbackCurrencyCode: fallbackCurrencyCode,
               onTap: () => onOfferTap(visibleOffers[index]),
             );
           },
@@ -897,15 +1566,20 @@ class _OfferGrid extends StatelessWidget {
 
 class _OfferCard extends StatelessWidget {
   final OfferModel offer;
+  final String regionCode;
+  final String fallbackCurrencyCode;
   final VoidCallback onTap;
 
   const _OfferCard({
     required this.offer,
+    required this.regionCode,
+    required this.fallbackCurrencyCode,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final hasImage = (offer.bannerUrl ?? '').isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(20),
@@ -931,6 +1605,8 @@ class _OfferCard extends StatelessWidget {
           if (hasImage)
             PremiumNetworkImage(
               imageUrl: offer.bannerUrl,
+              transformWidth: 960,
+              transformQuality: 82,
               height: 148,
               borderRadius: BorderRadius.circular(20),
               fallbackIcon: Icons.local_offer_outlined,
@@ -958,7 +1634,11 @@ class _OfferCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              _offerBadge(offer),
+              _offerBadge(
+                offer,
+                l10n,
+                fallbackCurrencyCode: fallbackCurrencyCode,
+              ),
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: AppColors.creamSoft,
                     fontWeight: FontWeight.w800,
@@ -967,7 +1647,7 @@ class _OfferCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            offer.title,
+            offer.localizedTitle(l10n),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -975,10 +1655,10 @@ class _OfferCard extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
           ),
-          if ((offer.subtitle ?? '').isNotEmpty) ...[
+          if ((offer.localizedSubtitle(l10n) ?? '').isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              offer.subtitle!,
+              offer.localizedSubtitle(l10n)!,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -986,11 +1666,11 @@ class _OfferCard extends StatelessWidget {
                   ),
             ),
           ],
-          if ((offer.description ?? '').isNotEmpty) ...[
+          if ((offer.localizedDescription(l10n) ?? '').isNotEmpty) ...[
             const SizedBox(height: 10),
             Expanded(
               child: Text(
-                offer.description!,
+                offer.localizedDescription(l10n)!,
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -1006,7 +1686,7 @@ class _OfferCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  _offerScope(offer),
+                  _offerScope(offer, l10n),
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: AppColors.creamSoft.withValues(alpha: 0.86),
                       ),
@@ -1019,7 +1699,7 @@ class _OfferCard extends StatelessWidget {
                   backgroundColor: AppColors.creamSoft,
                   foregroundColor: AppColors.brownDeep,
                 ),
-                child: const Text('Shop now'),
+                child: Text(l10n.t('offers_shop_now')),
               ),
             ],
           ),
@@ -1188,75 +1868,136 @@ class _BranchSection extends StatelessWidget {
           elevation: 0,
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Row(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 560;
+                return Column(
                   children: [
-                    Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        color: AppColors.creamSoft,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child:
-                          const Icon(Icons.storefront, color: AppColors.brown),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
+                    if (compact)
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            selectedBranch.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textDark,
+                          Row(
+                            children: [
+                              Container(
+                                width: 54,
+                                height: 54,
+                                decoration: BoxDecoration(
+                                  color: AppColors.creamSoft,
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: const Icon(
+                                  Icons.storefront,
+                                  color: AppColors.brown,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      selectedBranch.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.textDark,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      selectedBranch.city ??
+                                          l10n.t('home_branch_city_available'),
+                                      style: const TextStyle(
+                                        color: AppColors.textMuted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton(
+                              onPressed: onChangeBranch,
+                              child: Text(l10n.t('home_change_branch')),
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            selectedBranch.city ??
-                                l10n.t('home_branch_city_available'),
-                            style: const TextStyle(color: AppColors.textMuted),
+                        ],
+                      )
+                    else
+                      Row(
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(
+                              color: AppColors.creamSoft,
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: const Icon(Icons.storefront,
+                                color: AppColors.brown),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  selectedBranch.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  selectedBranch.city ??
+                                      l10n.t('home_branch_city_available'),
+                                  style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: onChangeBranch,
+                            child: Text(l10n.t('home_change_branch')),
                           ),
                         ],
                       ),
-                    ),
-                    TextButton(
-                      onPressed: onChangeBranch,
-                      child: Text(l10n.t('home_change_branch')),
+                    const SizedBox(height: 14),
+                    DropdownButtonFormField<int?>(
+                      key: ValueKey<int>(selectedBranch.id),
+                      initialValue: selectedBranch.id,
+                      items: branchOptions.values
+                          .map(
+                            (branch) => DropdownMenuItem<int?>(
+                              value: branch.id,
+                              child: Text(branch.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: onBranchSelected,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('home_select_branch'),
+                        filled: true,
+                        fillColor: AppColors.cream,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 14),
-                DropdownButtonFormField<int?>(
-                  key: ValueKey<int>(selectedBranch.id),
-                  initialValue: selectedBranch.id,
-                  items: branchOptions.values
-                      .map(
-                        (branch) => DropdownMenuItem<int?>(
-                          value: branch.id,
-                          child: Text(branch.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: onBranchSelected,
-                  decoration: InputDecoration(
-                    labelText: l10n.t('home_select_branch'),
-                    filled: true,
-                    fillColor: AppColors.cream,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         );
@@ -1292,8 +2033,10 @@ class _DeliveryInfoSection extends StatelessWidget {
               future: supportSettingsFuture,
               builder: (context, supportSnapshot) {
                 if (branchSnapshot.connectionState == ConnectionState.waiting ||
-                    deliverySnapshot.connectionState == ConnectionState.waiting ||
-                    supportSnapshot.connectionState == ConnectionState.waiting) {
+                    deliverySnapshot.connectionState ==
+                        ConnectionState.waiting ||
+                    supportSnapshot.connectionState ==
+                        ConnectionState.waiting) {
                   return const _SectionLoading(height: 180);
                 }
 
@@ -1373,8 +2116,11 @@ class _DeliveryInfoSection extends StatelessWidget {
                       const SizedBox(height: 14),
                       Text(
                         selectedBranch == null
-                            ? 'Select a branch to see branch-specific pickup and delivery availability.'
-                            : _branchDeliverySummary(selectedBranch),
+                            ? context.l10n.t('home_delivery_select_branch')
+                            : _branchDeliverySummary(
+                                selectedBranch,
+                                context.l10n,
+                              ),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               height: 1.55,
                             ),
@@ -1383,16 +2129,16 @@ class _DeliveryInfoSection extends StatelessWidget {
                         const SizedBox(height: 10),
                         Text(
                           deliveryBlock!.excerpt!,
-                          style:
-                              const TextStyle(color: AppColors.textMuted, height: 1.5),
+                          style: const TextStyle(
+                              color: AppColors.textMuted, height: 1.5),
                         ),
                       ],
                       if ((deliveryBlock?.body ?? '').trim().isNotEmpty) ...[
                         const SizedBox(height: 14),
                         Text(
                           deliveryBlock!.body!,
-                          style:
-                              const TextStyle(color: AppColors.textDark, height: 1.6),
+                          style: const TextStyle(
+                              color: AppColors.textDark, height: 1.6),
                         ),
                       ],
                       const SizedBox(height: 14),
@@ -1408,7 +2154,9 @@ class _DeliveryInfoSection extends StatelessWidget {
                           if ((settings.whatsappNumber ?? '').trim().isNotEmpty)
                             _InfoPill(
                               icon: Icons.chat_bubble_outline,
-                              label: (settings.whatsappLabel ?? '').trim().isNotEmpty
+                              label: (settings.whatsappLabel ?? '')
+                                      .trim()
+                                      .isNotEmpty
                                   ? '${settings.whatsappLabel} · ${settings.whatsappNumber}'
                                   : settings.whatsappNumber!,
                             ),
@@ -1455,6 +2203,7 @@ class _InfoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(maxWidth: 320),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.creamSoft,
@@ -1539,48 +2288,64 @@ class _SectionMessageCard extends StatelessWidget {
   }
 }
 
-String _productSubtitle(ProductModel product, AppLocalizations l10n) {
-  final source =
-      '${product.name} ${product.description ?? ''} ${product.sku ?? ''}';
-  final match = RegExp(
-    r'(\d+\s?(?:g|kg|ml|l|pack))',
-    caseSensitive: false,
-  ).firstMatch(source);
-  return match?.group(1) ?? l10n.t('product_standard_pack');
+String _productCardSummary(ProductModel product, AppLocalizations l10n) {
+  final shortDescription = (product.shortDescription ?? '').trim();
+  if (shortDescription.isNotEmpty) {
+    return shortDescription;
+  }
+  final packSize = (product.packSize ?? '').trim();
+  if (packSize.isNotEmpty) {
+    return '${l10n.t('product_pack_size_prefix')}: $packSize';
+  }
+  return l10n.t('product_standard_pack');
 }
 
-String _offerBadge(OfferModel offer) {
+String _formatCurrency(double amount, String currencyCode) {
+  final normalized =
+      amount % 1 == 0 ? amount.toStringAsFixed(0) : amount.toStringAsFixed(2);
+  return '$currencyCode $normalized';
+}
+
+String _offerBadge(
+  OfferModel offer,
+  AppLocalizations l10n, {
+  required String fallbackCurrencyCode,
+}) {
   if (offer.discountValue <= 0) {
-    return 'Limited offer';
+    return l10n.t('product_limited_offer');
   }
   if ((offer.discountType ?? '').toLowerCase() == 'percentage') {
-    return '${offer.discountValue.toStringAsFixed(0)}% off';
+    return '${offer.discountValue.toStringAsFixed(0)} ${l10n.t('product_percentage_off')}';
   }
-  return 'Save SAR ${offer.discountValue.toStringAsFixed(0)}';
+  final currencyCode = (offer.currencyCode ?? '').trim().isNotEmpty
+      ? offer.currencyCode!.trim().toUpperCase()
+      : fallbackCurrencyCode;
+  return '${l10n.t('product_save_amount')} ${_formatCurrency(offer.discountValue, currencyCode)}';
 }
 
-String _offerScope(OfferModel offer) {
+String _offerScope(OfferModel offer, AppLocalizations l10n) {
   if (offer.branchId != null) {
-    return 'Active in selected branch';
+    return l10n.t('product_offer_scope_branch');
   }
   if (offer.categoryId != null) {
-    return 'Active for a featured collection';
+    return l10n.t('product_offer_scope_category');
   }
   if (offer.productId != null) {
-    return 'Active for a highlighted product';
+    return l10n.t('product_offer_scope_product');
   }
-  return 'Available while this promotion is live';
+  return l10n.t('product_offer_scope_general');
 }
 
-String _branchDeliverySummary(BranchModel branch) {
+String _branchDeliverySummary(BranchModel branch, AppLocalizations l10n) {
   final deliveryLine = branch.deliveryAvailable
-      ? 'Delivery available'
-      : 'Delivery currently unavailable';
-  final pickupLine =
-      branch.pickupAvailable ? 'Pickup available' : 'Pickup currently unavailable';
+      ? l10n.t('home_delivery_available')
+      : l10n.t('home_delivery_unavailable');
+  final pickupLine = branch.pickupAvailable
+      ? l10n.t('home_pickup_available')
+      : l10n.t('home_pickup_unavailable');
   final coverage = (branch.deliveryCoverage ?? '').trim();
   if (coverage.isEmpty) {
     return '$deliveryLine. $pickupLine.';
   }
-  return '$deliveryLine. $pickupLine. Coverage: $coverage.';
+  return '$deliveryLine. $pickupLine. ${l10n.t('home_delivery_coverage')}: $coverage.';
 }

@@ -123,7 +123,7 @@ def create_order():
             product = Product.query.filter_by(id=cart_item.product_id, is_active=True).first()
             if not product:
                 return error_response('One or more cart products are unavailable.', status=400)
-            if product.branch_id is not None and product.branch_id != branch.id:
+            if not product.is_available_for_branch(branch.id):
                 return error_response(
                     f'{product.name} is not available for the selected branch.',
                     status=400,
@@ -134,7 +134,10 @@ def create_order():
                     status=400,
                 )
 
-            unit_price = _effective_product_price(product)
+            unit_price = _effective_product_price(
+                product,
+                region_code=branch.region_code if branch else None,
+            )
             line_total = unit_price * cart_item.quantity
             subtotal += line_total
             order_items.append(OrderItem(
@@ -294,13 +297,19 @@ def _normalized_order_status(status: str | None):
     return status or 'pending'
 
 
-def _effective_product_price(product: Product) -> Decimal:
-    if product.sale_price is not None:
-        sale_price = Decimal(str(product.sale_price))
-        base_price = Decimal(str(product.price or 0))
+def _effective_product_price(
+    product: Product,
+    *,
+    region_code: str | None = None,
+) -> Decimal:
+    resolved_sale_price = product.effective_sale_price(region_code)
+    resolved_price = product.effective_price(region_code)
+    if resolved_sale_price is not None:
+        sale_price = Decimal(str(resolved_sale_price))
+        base_price = Decimal(str(resolved_price or 0))
         if sale_price > 0 and sale_price < base_price:
             return sale_price
-    return Decimal(str(product.price or 0))
+    return Decimal(str(resolved_price or 0))
 
 
 def _is_payment_method_enabled(settings: SupportSetting | None, payment_method: str) -> bool:

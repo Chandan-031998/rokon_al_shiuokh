@@ -62,7 +62,7 @@ def add_cart_item():
             branch = Branch.query.filter_by(id=resolved_branch_id, is_active=True).first()
             if not branch:
                 return error_response('Selected branch not found.', status=404)
-            if product.branch_id is not None and product.branch_id != resolved_branch_id:
+            if not product.is_available_for_branch(resolved_branch_id):
                 return error_response('This product is not available for the selected branch.', status=400)
         cart_item = _find_cart_item(owner, product_id, resolved_branch_id)
         if cart_item:
@@ -110,6 +110,17 @@ def update_cart_item(item_id: int):
             if quantity is not None:
                 cart_item.quantity = quantity
             if branch_id is not None:
+                product = Product.query.filter_by(
+                    id=cart_item.product_id,
+                    is_active=True,
+                ).first()
+                if not product:
+                    return error_response('Product not found.', status=404)
+                if not product.is_available_for_branch(branch_id):
+                    return error_response(
+                        'This product is not available for the selected branch.',
+                        status=400,
+                    )
                 cart_item.branch_id = branch_id
 
         db.session.commit()
@@ -218,10 +229,13 @@ def _cart_response(owner):
         if not product:
             continue
 
-        price_value = _effective_product_price(product)
+        branch = branches.get(item.branch_id)
+        price_value = _effective_product_price(
+            product,
+            region_code=branch.region_code if branch else None,
+        )
         line_total = price_value * item.quantity
         subtotal += line_total
-        branch = branches.get(item.branch_id)
 
         serialized_items.append({
             'id': item.id,
@@ -233,7 +247,11 @@ def _cart_response(owner):
                 'name': product.name,
                 'name_ar': product.name_ar,
                 'price': float(price_value),
-                'sale_price': float(product.sale_price) if product.sale_price is not None else None,
+                'sale_price': (
+                    float(product.effective_sale_price(branch.region_code if branch else None))
+                    if product.effective_sale_price(branch.region_code if branch else None) is not None
+                    else None
+                ),
                 'image_url': product.resolved_image_url,
                 'description': product.description,
                 'sku': product.sku,
@@ -269,13 +287,19 @@ def _empty_cart_response():
     })
 
 
-def _effective_product_price(product: Product) -> Decimal:
-    if product.sale_price is not None:
-        sale_price = Decimal(str(product.sale_price))
-        base_price = Decimal(str(product.price or 0))
+def _effective_product_price(
+    product: Product,
+    *,
+    region_code: str | None = None,
+) -> Decimal:
+    resolved_sale_price = product.effective_sale_price(region_code)
+    resolved_price = product.effective_price(region_code)
+    if resolved_sale_price is not None:
+        sale_price = Decimal(str(resolved_sale_price))
+        base_price = Decimal(str(resolved_price or 0))
         if sale_price > 0 and sale_price < base_price:
             return sale_price
-    return Decimal(str(product.price or 0))
+    return Decimal(str(resolved_price or 0))
 
 
 def _serialize_cart_payment_methods(settings: SupportSetting | None) -> list[dict]:

@@ -210,13 +210,13 @@ class _RokonAppState extends State<RokonApp> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _localeController,
-      builder: (context, _) {
+    return ValueListenableBuilder<Locale>(
+      valueListenable: _localeController.localeListenable,
+      builder: (context, locale, _) {
         return MaterialApp.router(
           debugShowCheckedModeBanner: false,
           onGenerateTitle: (context) => context.l10n.t('app_title'),
-          locale: _localeController.locale,
+          locale: locale,
           supportedLocales: AppLocalizations.supportedLocales,
           localizationsDelegates: const [
             AppLocalizations.delegate,
@@ -225,7 +225,7 @@ class _RokonAppState extends State<RokonApp> {
             GlobalWidgetsLocalizations.delegate,
           ],
           builder: (context, child) {
-            final isArabic = _localeController.locale.languageCode == 'ar';
+            final isArabic = locale.languageCode == 'ar';
             return Directionality(
               textDirection: isArabic ? TextDirection.rtl : TextDirection.ltr,
               child: child ?? const SizedBox.shrink(),

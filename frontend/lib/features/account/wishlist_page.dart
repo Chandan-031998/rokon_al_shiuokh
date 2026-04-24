@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/extensions/localized_content.dart';
 import '../../core/widgets/premium_network_image.dart';
+import '../../localization/app_locale_controller.dart';
 import '../../localization/app_localizations.dart';
 import '../../models/branch_model.dart';
 import '../../models/product_model.dart';
@@ -12,10 +13,12 @@ import '../products/product_details_page.dart';
 
 class WishlistPage extends StatefulWidget {
   final ApiService apiService;
+  final AppLocaleController localeController;
 
   const WishlistPage({
     super.key,
     required this.apiService,
+    required this.localeController,
   });
 
   @override
@@ -30,13 +33,36 @@ class _WishlistPageState extends State<WishlistPage> {
   @override
   void initState() {
     super.initState();
+    widget.localeController.addListener(_reload);
     _wishlistFuture = widget.apiService.fetchWishlist();
-    _branchesFuture = widget.apiService.fetchBranches();
+    _branchesFuture = widget.apiService.fetchBranches(
+      regionCode: widget.localeController.regionCode,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant WishlistPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.localeController != widget.localeController) {
+      oldWidget.localeController.removeListener(_reload);
+      widget.localeController.addListener(_reload);
+      _reload();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.localeController.removeListener(_reload);
+    super.dispose();
   }
 
   void _reload() {
     setState(() {
       _wishlistFuture = widget.apiService.fetchWishlist();
+      _branchesFuture = widget.apiService.fetchBranches(
+        forceRefresh: true,
+        regionCode: widget.localeController.regionCode,
+      );
     });
   }
 
@@ -49,16 +75,14 @@ class _WishlistPageState extends State<WishlistPage> {
       }
       _reload();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Removed from wishlist.')),
+        SnackBar(content: Text(context.l10n.t('wishlist_removed_generic'))),
       );
     } catch (_) {
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to update wishlist right now.'),
-        ),
+        SnackBar(content: Text(context.l10n.t('discovery_wishlist_error'))),
       );
     } finally {
       if (mounted) {
@@ -100,6 +124,7 @@ class _WishlistPageState extends State<WishlistPage> {
           product: product,
           branches: branches,
           apiService: widget.apiService,
+          localeController: widget.localeController,
         ),
       ),
     );
@@ -111,8 +136,9 @@ class _WishlistPageState extends State<WishlistPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
-      appBar: AppBar(title: const Text('Wishlist')),
+      appBar: AppBar(title: Text(l10n.t('account_wishlist_title'))),
       body: FutureBuilder<List<WishlistItemModel>>(
         future: _wishlistFuture,
         builder: (context, snapshot) {
@@ -122,10 +148,9 @@ class _WishlistPageState extends State<WishlistPage> {
 
           if (snapshot.hasError) {
             return _WishlistStateCard(
-              title: 'Unable to load wishlist',
-              description:
-                  'The latest saved products could not be retrieved right now.',
-              actionLabel: 'Retry',
+              title: l10n.t('wishlist_error_title'),
+              description: l10n.t('wishlist_error_desc'),
+              actionLabel: l10n.t('common_retry'),
               onPressed: _reload,
             );
           }
@@ -133,10 +158,9 @@ class _WishlistPageState extends State<WishlistPage> {
           final items = snapshot.data ?? const <WishlistItemModel>[];
           if (items.isEmpty) {
             return _WishlistStateCard(
-              title: 'Your wishlist is empty',
-              description:
-                  'Tap the heart on any product to save it here for later.',
-              actionLabel: 'Refresh',
+              title: l10n.t('wishlist_empty_title'),
+              description: l10n.t('wishlist_empty_desc'),
+              actionLabel: l10n.t('common_refresh'),
               onPressed: _reload,
             );
           }
@@ -189,11 +213,12 @@ class _WishlistPageState extends State<WishlistPage> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              product.shortDescription?.trim().isNotEmpty == true
+                              product.shortDescription?.trim().isNotEmpty ==
+                                      true
                                   ? product.shortDescription!
                                   : (product.packSize?.trim().isNotEmpty == true
-                                      ? 'Pack size: ${product.packSize}'
-                                      : 'Saved for later'),
+                                      ? '${l10n.t('product_pack_size_prefix')}: ${product.packSize}'
+                                      : l10n.t('wishlist_saved_for_later')),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context)
@@ -203,7 +228,7 @@ class _WishlistPageState extends State<WishlistPage> {
                             ),
                             const SizedBox(height: 10),
                             Text(
-                              'SAR ${product.effectivePrice.toStringAsFixed(0)}',
+                              '${product.currencyCodeForRegion(widget.localeController.regionCode, fallback: widget.localeController.currencyCode)} ${product.effectivePrice.toStringAsFixed(0)}',
                               style: Theme.of(context)
                                   .textTheme
                                   .titleMedium
@@ -221,7 +246,7 @@ class _WishlistPageState extends State<WishlistPage> {
                                   onPressed: product.stockQty > 0
                                       ? () => _addToCart(product)
                                       : null,
-                                  child: const Text('Add to cart'),
+                                  child: Text(l10n.t('common_add_to_cart')),
                                 ),
                                 OutlinedButton.icon(
                                   onPressed: _busyProductId == product.id
@@ -236,7 +261,7 @@ class _WishlistPageState extends State<WishlistPage> {
                                           ),
                                         )
                                       : const Icon(Icons.favorite_rounded),
-                                  label: const Text('Remove'),
+                                  label: Text(l10n.t('common_remove')),
                                 ),
                               ],
                             ),

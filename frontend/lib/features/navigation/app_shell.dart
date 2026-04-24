@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/widgets/brand_logo.dart';
-import '../../core/widgets/language_toggle.dart';
+import '../../core/widgets/storefront_switcher.dart';
 import '../../localization/app_locale_controller.dart';
 import '../../localization/app_localizations.dart';
 import '../../models/user_model.dart';
@@ -483,7 +483,7 @@ class _DesktopHeaderActions extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
       children: [
-        LanguageToggle(
+        StorefrontSwitcher(
           controller: localeController,
           compact: compact,
         ),
@@ -783,7 +783,7 @@ class TabScreenTemplate extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsetsDirectional.only(end: 10),
                     child: Center(
-                      child: LanguageToggle(
+                      child: StorefrontSwitcher(
                         controller: localeController!,
                         compact: true,
                       ),

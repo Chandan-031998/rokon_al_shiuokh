@@ -78,6 +78,14 @@ JWT_SECRET_KEY
 Optional startup bootstrap values:
 
 ```bash
+ADMIN_BOOTSTRAP_1_EMAIL
+ADMIN_BOOTSTRAP_1_PASSWORD
+ADMIN_BOOTSTRAP_1_NAME
+ADMIN_BOOTSTRAP_1_BRANCH
+ADMIN_BOOTSTRAP_2_EMAIL
+ADMIN_BOOTSTRAP_2_PASSWORD
+ADMIN_BOOTSTRAP_2_NAME
+ADMIN_BOOTSTRAP_2_BRANCH
 ADMIN_BOOTSTRAP_EMAIL
 ADMIN_BOOTSTRAP_PASSWORD
 ADMIN_BOOTSTRAP_NAME
@@ -180,3 +188,23 @@ git push
 
 
 flutter build web --release --base-href /
+
+
+
+
+
+
+deactivate
+
+# create new env
+python3.11 -m venv venv_new
+
+# activate
+source venv_new/bin/activate
+
+# install dependencies
+pip install -r requirements.txt
+pip install Pillow
+
+# run app
+python app.py

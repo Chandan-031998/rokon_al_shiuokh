@@ -1,4 +1,4 @@
-from flask import Blueprint
+from flask import Blueprint, request
 from sqlalchemy.exc import SQLAlchemyError
 
 from models.category import Category
@@ -16,7 +16,8 @@ category_bp = Blueprint('categories', __name__)
 @category_bp.get('/')
 def list_categories():
     page, per_page = parse_pagination_args(default_per_page=24, max_per_page=60)
-    cache_key = f'categories:page={page}:per_page={per_page}'
+    language = (request.args.get('language') or 'en').strip().lower()
+    cache_key = f'categories:page={page}:per_page={per_page}:language={language}'
 
     try:
         def build_payload():
@@ -25,7 +26,16 @@ def list_categories():
             option = load_only_existing(
                 Category,
                 'categories',
-                ['id', 'name', 'name_ar', 'image_url', 'sort_order', 'is_active'],
+                [
+                    'id',
+                    'name',
+                    'name_en',
+                    'name_ar',
+                    'image_url',
+                    'icon_key',
+                    'sort_order',
+                    'is_active',
+                ],
             )
             if option is not None:
                 query = query.options(option)
@@ -41,10 +51,11 @@ def list_categories():
                 'items': [
                     {
                         'id': row.id,
-                        'name': row.name,
+                        'name': row.localized_name(language),
+                        'name_en': row.name_en or row.name,
                         'name_ar': row.name_ar,
                         'image_url': row.image_url,
-                        'icon_key': icon_key_for_category(row.name),
+                        'icon_key': row.icon_key or icon_key_for_category(row.name),
                     }
                     for row in rows
                 ],

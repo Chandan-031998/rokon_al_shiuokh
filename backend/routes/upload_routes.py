@@ -11,6 +11,10 @@ from utils.auth import admin_required
 
 upload_bp = Blueprint('uploads', __name__)
 
+_MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+_SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+_SUPPORTED_CONTENT_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
+
 
 @upload_bp.post('/product-image')
 @admin_required
@@ -22,15 +26,15 @@ def upload_product_image():
     file_bytes = file.read()
     if not file_bytes:
         return error_response('Uploaded file is empty.', status=400)
-    if len(file_bytes) > 5 * 1024 * 1024:
+    if len(file_bytes) > _MAX_UPLOAD_BYTES:
         return error_response('Image size must be 5 MB or smaller.', status=400)
 
     extension = Path(file.filename).suffix.lower()
-    if extension not in {'.jpg', '.jpeg', '.png', '.webp'}:
+    if extension not in _SUPPORTED_EXTENSIONS:
         return error_response('Only JPG, PNG, and WEBP images are supported.', status=400)
 
     content_type = (file.mimetype or '').lower()
-    if content_type not in {'image/jpeg', 'image/png', 'image/webp'}:
+    if content_type not in _SUPPORTED_CONTENT_TYPES:
         return error_response('Invalid image content type.', status=400)
 
     storage_path = f'products/{uuid4().hex}{extension}'

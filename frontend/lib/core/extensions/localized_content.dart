@@ -2,6 +2,7 @@ import '../../localization/app_localizations.dart';
 import '../../models/category_model.dart';
 import '../../models/cms_page_model.dart';
 import '../../models/faq_model.dart';
+import '../../models/offer_model.dart';
 import '../../models/product_model.dart';
 
 extension CategoryLocalizedContent on CategoryModel {
@@ -21,6 +22,45 @@ extension ProductLocalizedContent on ProductModel {
       return arabic;
     }
     return name;
+  }
+
+  String currencyCodeForRegion(
+    String regionCode, {
+    String fallback = 'SAR',
+  }) {
+    final normalized = regionCode.trim().toLowerCase();
+    for (final row in regionPrices) {
+      if (row.regionCode == normalized && row.currencyCode.trim().isNotEmpty) {
+        return row.currencyCode.trim().toUpperCase();
+      }
+    }
+    return fallback;
+  }
+}
+
+extension OfferLocalizedContent on OfferModel {
+  String localizedTitle(AppLocalizations l10n) {
+    final arabic = titleAr?.trim();
+    if (l10n.isArabic && arabic != null && arabic.isNotEmpty) {
+      return arabic;
+    }
+    return title;
+  }
+
+  String? localizedSubtitle(AppLocalizations l10n) {
+    final arabic = subtitleAr?.trim();
+    if (l10n.isArabic && arabic != null && arabic.isNotEmpty) {
+      return arabic;
+    }
+    return subtitle;
+  }
+
+  String? localizedDescription(AppLocalizations l10n) {
+    final arabic = descriptionAr?.trim();
+    if (l10n.isArabic && arabic != null && arabic.isNotEmpty) {
+      return arabic;
+    }
+    return description;
   }
 }
 

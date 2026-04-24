@@ -1,0 +1,6 @@
+#!/Users/chandangirish/Downloads/rokon_al_shiuokh_flutter_flask_supabase/backend/venv_new/bin/python3.11
+import sys
+from mako.cmd import cmdline
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(cmdline())
