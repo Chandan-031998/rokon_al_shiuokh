@@ -259,47 +259,42 @@ class _CardImageRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const imageRailHeight = 248.0;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final imageRailHeight = screenWidth >= 1024
+        ? 256.0
+        : screenWidth >= 640
+            ? 224.0
+            : 192.0;
+    const imageBorderRadius = BorderRadius.vertical(top: Radius.circular(28));
     return SizedBox(
       height: imageRailHeight,
       child: Stack(
         children: [
           Positioned.fill(
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF3A2218),
-                    Color(0xFF7A4A2A),
-                    Color(0xFFC89B5A)
-                  ],
+            child: ClipRRect(
+              borderRadius: imageBorderRadius,
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF3A2218),
+                      Color(0xFF7A4A2A),
+                      Color(0xFFC89B5A)
+                    ],
+                  ),
                 ),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final devicePixelRatio = MediaQuery.devicePixelRatioOf(
-                    context,
-                  );
-                  final requestedWidth =
-                      (constraints.maxWidth * devicePixelRatio)
-                          .round()
-                          .clamp(900, 1600);
-                  return PremiumNetworkImage(
+                child: SizedBox.expand(
+                  child: PremiumNetworkImage(
                     imageUrl: imageUrl,
-                    height: imageRailHeight,
-                    transformWidth: requestedWidth,
-                    transformQuality: 90,
                     fit: BoxFit.cover,
                     filterQuality: FilterQuality.high,
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(28)),
+                    borderRadius: imageBorderRadius,
                     fallbackIcon: Icons.shopping_bag_outlined,
                     semanticLabel: semanticLabel,
-                  );
-                },
+                  ),
+                ),
               ),
             ),
           ),

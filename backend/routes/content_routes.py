@@ -8,6 +8,7 @@ from models.cms_page import CmsPage
 from models.faq import Faq
 from models.offer import Offer
 from models.support_setting import SupportSetting
+from services.content_seed import default_cms_page_by_slug, default_support_settings
 from utils.api import items_response, success_response
 
 
@@ -115,13 +116,25 @@ def _localized_metadata(page: CmsPage, language: str) -> dict:
 
 
 def _serialize_cms_page(page: CmsPage, *, language: str = 'en'):
-    title = _localized_value(language, page.title_en or page.title, page.title_ar)
+    default_page = default_cms_page_by_slug(page.slug) if language == 'ar' else None
+    fallback_title_ar = (default_page or {}).get('title_ar')
+    fallback_excerpt_ar = (default_page or {}).get('excerpt_ar')
+    fallback_body_ar = (default_page or {}).get('body_ar')
+    title = _localized_value(
+        language,
+        page.title_en or page.title,
+        page.title_ar or fallback_title_ar,
+    )
     excerpt = _localized_value(
         language,
         page.excerpt_en or page.excerpt,
-        page.excerpt_ar,
+        page.excerpt_ar or fallback_excerpt_ar,
     )
-    body = _localized_value(language, page.body_en or page.body, page.body_ar)
+    body = _localized_value(
+        language,
+        page.body_en or page.body,
+        page.body_ar or fallback_body_ar,
+    )
     cta_label = _localized_value(
         language,
         page.cta_label,
@@ -132,14 +145,14 @@ def _serialize_cms_page(page: CmsPage, *, language: str = 'en'):
         'slug': page.slug,
         'title': title,
         'title_en': page.title_en or page.title,
-        'title_ar': page.title_ar,
+        'title_ar': page.title_ar or fallback_title_ar,
         'section': page.section,
         'excerpt': excerpt,
         'excerpt_en': page.excerpt_en or page.excerpt,
-        'excerpt_ar': page.excerpt_ar,
+        'excerpt_ar': page.excerpt_ar or fallback_excerpt_ar,
         'body': body,
         'body_en': page.body_en or page.body,
-        'body_ar': page.body_ar,
+        'body_ar': page.body_ar or fallback_body_ar,
         'image_url': page.image_url,
         'cta_label': cta_label,
         'cta_url': page.cta_url,
@@ -206,28 +219,40 @@ def _serialize_support_settings(settings: SupportSetting | None, *, language: st
             'snapchat_url': None,
             'youtube_url': None,
         }
+    default_settings = default_support_settings() if language == 'ar' else {}
+    contact_address_ar = settings.contact_address_ar
+    support_hours_ar = settings.support_hours_ar
+    whatsapp_label_ar = settings.whatsapp_label_ar
+    if language == 'ar':
+        if not (contact_address_ar or '').strip() or contact_address_ar == settings.contact_address:
+            contact_address_ar = default_settings.get('contact_address_ar')
+        if not (support_hours_ar or '').strip() or support_hours_ar == settings.support_hours:
+            support_hours_ar = default_settings.get('support_hours_ar')
+        if not (whatsapp_label_ar or '').strip() or whatsapp_label_ar == settings.whatsapp_label:
+            whatsapp_label_ar = default_settings.get('whatsapp_label_ar')
+
     return {
         'contact_email': settings.contact_email,
         'contact_phone': settings.contact_phone,
         'contact_address': _localized_value(
             language,
             settings.contact_address,
-            settings.contact_address_ar,
+            contact_address_ar,
         ),
-        'contact_address_ar': settings.contact_address_ar,
+        'contact_address_ar': contact_address_ar,
         'support_hours': _localized_value(
             language,
             settings.support_hours,
-            settings.support_hours_ar,
+            support_hours_ar,
         ),
-        'support_hours_ar': settings.support_hours_ar,
+        'support_hours_ar': support_hours_ar,
         'whatsapp_number': settings.whatsapp_number,
         'whatsapp_label': _localized_value(
             language,
             settings.whatsapp_label,
-            settings.whatsapp_label_ar,
+            whatsapp_label_ar,
         ),
-        'whatsapp_label_ar': settings.whatsapp_label_ar,
+        'whatsapp_label_ar': whatsapp_label_ar,
         'payment_cod_enabled': bool(settings.payment_cod_enabled),
         'payment_card_enabled': bool(settings.payment_card_enabled),
         'payment_bank_transfer_enabled': bool(settings.payment_bank_transfer_enabled),

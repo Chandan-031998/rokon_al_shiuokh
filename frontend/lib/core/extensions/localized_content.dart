@@ -1,9 +1,11 @@
 import '../../localization/app_localizations.dart';
 import '../../models/category_model.dart';
+import '../../models/branch_model.dart';
 import '../../models/cms_page_model.dart';
 import '../../models/faq_model.dart';
 import '../../models/offer_model.dart';
 import '../../models/product_model.dart';
+import '../../models/support_settings_model.dart';
 
 extension CategoryLocalizedContent on CategoryModel {
   String localizedName(AppLocalizations l10n) {
@@ -35,6 +37,54 @@ extension ProductLocalizedContent on ProductModel {
       }
     }
     return fallback;
+  }
+}
+
+extension BranchLocalizedContent on BranchModel {
+  String localizedName(AppLocalizations l10n) {
+    if (!l10n.isArabic) {
+      return name;
+    }
+    final normalized = name.trim().toLowerCase();
+    if (normalized == 'mahayil aseer (main branch)') {
+      return 'محايل عسير (الفرع الرئيسي)';
+    }
+    if (normalized == 'abha branch') {
+      return 'فرع أبها';
+    }
+    return name;
+  }
+
+  String? localizedCity(AppLocalizations l10n) {
+    final normalized = (city ?? '').trim().toLowerCase();
+    if (!l10n.isArabic || normalized.isEmpty) {
+      return city;
+    }
+    if (normalized == 'mahayil aseer') {
+      return 'محايل عسير';
+    }
+    if (normalized == 'abha') {
+      return 'أبها';
+    }
+    return city;
+  }
+
+  String? localizedDeliveryCoverage(AppLocalizations l10n) {
+    final coverage = deliveryCoverage?.trim();
+    if (!l10n.isArabic || coverage == null || coverage.isEmpty) {
+      return deliveryCoverage;
+    }
+    final normalized = coverage.toLowerCase();
+    if (normalized == 'mahayil aseer & abha branch support coverage') {
+      return 'تغطية دعم فروع محايل عسير وأبها';
+    }
+    if (normalized == 'main branch address') {
+      return 'عنوان الفرع الرئيسي';
+    }
+    if (normalized == 'abha branch address') {
+      return 'عنوان فرع أبها';
+    }
+    return deliveryCoverage;
   }
 }
 
@@ -95,6 +145,32 @@ extension CmsPageLocalizedContent on CmsPageModel {
       return arabic;
     }
     return ctaLabel;
+  }
+}
+
+extension SupportSettingsLocalizedContent on SupportSettingsModel {
+  String? localizedSupportHours(AppLocalizations l10n) {
+    final arabic = supportHoursAr?.trim();
+    if (l10n.isArabic && arabic != null && arabic.isNotEmpty) {
+      return arabic;
+    }
+    return supportHours;
+  }
+
+  String? localizedWhatsappLabel(AppLocalizations l10n) {
+    final arabic = whatsappLabelAr?.trim();
+    if (l10n.isArabic && arabic != null && arabic.isNotEmpty) {
+      return arabic;
+    }
+    return whatsappLabel;
+  }
+
+  String? localizedContactAddress(AppLocalizations l10n) {
+    final arabic = contactAddressAr?.trim();
+    if (l10n.isArabic && arabic != null && arabic.isNotEmpty) {
+      return arabic;
+    }
+    return contactAddress;
   }
 }
 

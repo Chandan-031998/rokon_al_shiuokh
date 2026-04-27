@@ -1609,6 +1609,13 @@ class _RelatedProductsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final imageHeight = screenWidth >= 1024
+        ? 256.0
+        : screenWidth >= 640
+            ? 224.0
+            : 192.0;
+    final railHeight = imageHeight + 118;
     return _LuxuryPanel(
       padding: const EdgeInsets.all(22),
       child: Column(
@@ -1622,7 +1629,7 @@ class _RelatedProductsSection extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           SizedBox(
-            height: 270,
+            height: railHeight,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: products.length,
@@ -1647,7 +1654,9 @@ class _RelatedProductsSection extends StatelessWidget {
                           children: [
                             PremiumNetworkImage(
                               imageUrl: product.imageUrl,
-                              height: 150,
+                              height: imageHeight,
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.high,
                               borderRadius: BorderRadius.circular(18),
                               fallbackIcon: Icons.shopping_bag_outlined,
                               semanticLabel: product.name,

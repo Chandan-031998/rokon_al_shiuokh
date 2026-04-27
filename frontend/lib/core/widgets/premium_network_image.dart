@@ -40,9 +40,17 @@ class PremiumNetworkImage extends StatelessWidget {
       icon: fallbackIcon,
       iconSize: fallbackIconSize,
     );
-    final cacheWidth = width != null && width!.isFinite ? width!.round() : null;
-    final cacheHeight =
-        height != null && height!.isFinite ? height!.round() : null;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final cacheWidth = _resolveCacheDimension(
+      transformWidth,
+      width,
+      devicePixelRatio,
+    );
+    final cacheHeight = _resolveCacheDimension(
+      null,
+      height,
+      devicePixelRatio,
+    );
 
     return Container(
       width: width,
@@ -261,4 +269,18 @@ String? _normalizeImageUrl(String? rawUrl) {
   }
 
   return null;
+}
+
+int? _resolveCacheDimension(
+  int? requestedPixels,
+  double? logicalPixels,
+  double devicePixelRatio,
+) {
+  if (requestedPixels != null && requestedPixels > 0) {
+    return requestedPixels;
+  }
+  if (logicalPixels == null || !logicalPixels.isFinite || logicalPixels <= 0) {
+    return null;
+  }
+  return (logicalPixels * devicePixelRatio).round();
 }

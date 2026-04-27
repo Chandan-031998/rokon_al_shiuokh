@@ -193,6 +193,8 @@ class _WishlistPageState extends State<WishlistPage> {
                         height: 92,
                         child: PremiumNetworkImage(
                           imageUrl: product.imageUrl,
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.high,
                           borderRadius: BorderRadius.circular(18),
                           fallbackIcon: Icons.favorite_border_rounded,
                         ),

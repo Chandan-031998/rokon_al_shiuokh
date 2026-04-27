@@ -1186,7 +1186,7 @@ class _CategorySection extends StatelessWidget {
                 : preferredCrossAxisCount;
 
             return GridView.builder(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -1897,7 +1897,7 @@ class _BranchSection extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      selectedBranch.name,
+                                      selectedBranch.localizedName(l10n),
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
                                         color: AppColors.textDark,
@@ -1905,7 +1905,7 @@ class _BranchSection extends StatelessWidget {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      selectedBranch.city ??
+                                      selectedBranch.localizedCity(l10n) ??
                                           l10n.t('home_branch_city_available'),
                                       style: const TextStyle(
                                         color: AppColors.textMuted,
@@ -1945,7 +1945,7 @@ class _BranchSection extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  selectedBranch.name,
+                                  selectedBranch.localizedName(l10n),
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.textDark,
@@ -1953,7 +1953,7 @@ class _BranchSection extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  selectedBranch.city ??
+                                  selectedBranch.localizedCity(l10n) ??
                                       l10n.t('home_branch_city_available'),
                                   style: const TextStyle(
                                     color: AppColors.textMuted,
@@ -1976,7 +1976,7 @@ class _BranchSection extends StatelessWidget {
                           .map(
                             (branch) => DropdownMenuItem<int?>(
                               value: branch.id,
-                              child: Text(branch.name),
+                              child: Text(branch.localizedName(l10n)),
                             ),
                           )
                           .toList(),
@@ -2044,10 +2044,9 @@ class _DeliveryInfoSection extends StatelessWidget {
                     deliverySnapshot.hasError ||
                     supportSnapshot.hasError) {
                   return _SectionMessageCard(
-                    title: 'Delivery information is unavailable',
-                    description:
-                        'Branch coverage and support details could not be loaded. Retry to refresh the latest service information.',
-                    actionLabel: 'Retry',
+                    title: context.l10n.t('home_delivery_error_title'),
+                    description: context.l10n.t('home_delivery_error_desc'),
+                    actionLabel: context.l10n.t('common_retry'),
                     onPressed: onRetry,
                   );
                 }
@@ -2102,8 +2101,11 @@ class _DeliveryInfoSection extends StatelessWidget {
                           const SizedBox(width: 14),
                           Expanded(
                             child: Text(
-                              (deliveryBlock?.title ?? '').trim().isNotEmpty
-                                  ? deliveryBlock!.title
+                              (deliveryBlock?.localizedTitle(context.l10n) ??
+                                          '')
+                                      .trim()
+                                      .isNotEmpty
+                                  ? deliveryBlock!.localizedTitle(context.l10n)
                                   : context.l10n.t('home_delivery_information'),
                               style: Theme.of(context)
                                   .textTheme
@@ -2125,18 +2127,22 @@ class _DeliveryInfoSection extends StatelessWidget {
                               height: 1.55,
                             ),
                       ),
-                      if ((deliveryBlock?.excerpt ?? '').trim().isNotEmpty) ...[
+                      if ((deliveryBlock?.localizedExcerpt(context.l10n) ?? '')
+                          .trim()
+                          .isNotEmpty) ...[
                         const SizedBox(height: 10),
                         Text(
-                          deliveryBlock!.excerpt!,
+                          deliveryBlock!.localizedExcerpt(context.l10n)!,
                           style: const TextStyle(
                               color: AppColors.textMuted, height: 1.5),
                         ),
                       ],
-                      if ((deliveryBlock?.body ?? '').trim().isNotEmpty) ...[
+                      if ((deliveryBlock?.localizedBody(context.l10n) ?? '')
+                          .trim()
+                          .isNotEmpty) ...[
                         const SizedBox(height: 14),
                         Text(
-                          deliveryBlock!.body!,
+                          deliveryBlock!.localizedBody(context.l10n)!,
                           style: const TextStyle(
                               color: AppColors.textDark, height: 1.6),
                         ),
@@ -2154,16 +2160,23 @@ class _DeliveryInfoSection extends StatelessWidget {
                           if ((settings.whatsappNumber ?? '').trim().isNotEmpty)
                             _InfoPill(
                               icon: Icons.chat_bubble_outline,
-                              label: (settings.whatsappLabel ?? '')
+                              label: (settings.localizedWhatsappLabel(
+                                            context.l10n,
+                                          ) ??
+                                          '')
                                       .trim()
                                       .isNotEmpty
-                                  ? '${settings.whatsappLabel} · ${settings.whatsappNumber}'
+                                  ? '${settings.localizedWhatsappLabel(context.l10n)} · ${settings.whatsappNumber}'
                                   : settings.whatsappNumber!,
                             ),
-                          if ((settings.supportHours ?? '').trim().isNotEmpty)
+                          if ((settings.localizedSupportHours(context.l10n) ??
+                                  '')
+                              .trim()
+                              .isNotEmpty)
                             _InfoPill(
                               icon: Icons.schedule_outlined,
-                              label: settings.supportHours!,
+                              label:
+                                  settings.localizedSupportHours(context.l10n)!,
                             ),
                         ],
                       ),

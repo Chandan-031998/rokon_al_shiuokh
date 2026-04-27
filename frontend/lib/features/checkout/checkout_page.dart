@@ -557,7 +557,7 @@ class _CheckoutForm extends StatelessWidget {
                         .map(
                           (branch) => DropdownMenuItem<int>(
                             value: branch.id,
-                            child: Text(branch.name),
+                            child: Text(branch.localizedName(l10n)),
                           ),
                         )
                         .toList(),
@@ -964,7 +964,7 @@ class _BranchModeCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            branch.name,
+            branch.localizedName(context.l10n),
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                 ),
@@ -972,10 +972,17 @@ class _BranchModeCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             mode == CheckoutMode.delivery
-                ? (branch.deliveryCoverage?.trim().isNotEmpty == true
-                    ? 'Delivery coverage: ${branch.deliveryCoverage}'
-                    : 'Delivery is available from this branch.')
-                : 'Pickup is available from this branch during branch operating hours.',
+                ? (branch
+                            .localizedDeliveryCoverage(context.l10n)
+                            ?.trim()
+                            .isNotEmpty ==
+                        true
+                    ? context.l10n.t('checkout_delivery_coverage_branch', {
+                        'coverage':
+                            branch.localizedDeliveryCoverage(context.l10n)!,
+                      })
+                    : context.l10n.t('checkout_delivery_available_branch'))
+                : context.l10n.t('checkout_pickup_available_branch'),
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   height: 1.5,
                 ),

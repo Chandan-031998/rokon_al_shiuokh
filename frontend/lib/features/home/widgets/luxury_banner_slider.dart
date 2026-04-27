@@ -266,12 +266,15 @@ class _BannerCarouselState extends State<_BannerCarousel> {
                       if (isTablet)
                         _SliderInfoPill(
                           icon: Icons.workspace_premium_outlined,
-                          label: _localizedMetadata(
-                                widget.slides[_currentIndex],
-                                context.l10n,
-                                'metric',
-                              ) ??
-                              'Storefront',
+                          label: _localizedHeroLabel(
+                            _localizedMetadata(
+                              widget.slides[_currentIndex],
+                              context.l10n,
+                              'metric',
+                            ),
+                            context.l10n,
+                            'home_hero_metric_storefront',
+                          ),
                         ),
                     ],
                   ),
@@ -425,15 +428,23 @@ class _SlideContent extends StatelessWidget {
     final introGap = isCompactMobile ? 12.0 : 16.0;
     final bodyGap = isCompactMobile ? 10.0 : 14.0;
     final actionGap = isCompactMobile ? 14.0 : 18.0;
-    final eyebrow =
-        _localizedMetadata(page, l10n, 'eyebrow') ?? 'Storefront Feature';
+    final eyebrow = _localizedHeroLabel(
+      _localizedMetadata(page, l10n, 'eyebrow'),
+      l10n,
+      'home_hero_eyebrow_storefront_feature',
+    );
     final subtitle =
         (page.localizedExcerpt(l10n) ?? page.localizedBody(l10n) ?? '').trim();
-    final primaryLabel = (page.localizedCtaLabel(l10n) ?? '').trim().isNotEmpty
-        ? page.localizedCtaLabel(l10n)!.trim()
-        : 'Browse Collection';
-    final secondaryLabel =
-        _localizedMetadata(page, l10n, 'secondary_label') ?? 'Change Branch';
+    final primaryLabel = _localizedHeroLabel(
+      page.localizedCtaLabel(l10n),
+      l10n,
+      'home_hero_cta_browse_collection',
+    );
+    final secondaryLabel = _localizedHeroLabel(
+      _localizedMetadata(page, l10n, 'secondary_label'),
+      l10n,
+      'home_hero_cta_change_branch',
+    );
 
     return Container(
       padding: EdgeInsets.all(containerPadding),
@@ -838,4 +849,36 @@ String? _localizedMetadata(
     return null;
   }
   return value;
+}
+
+String _localizedHeroLabel(
+  String? value,
+  AppLocalizations l10n,
+  String fallbackKey,
+) {
+  final normalized = (value ?? '').trim();
+  if (normalized.isEmpty) {
+    return l10n.t(fallbackKey);
+  }
+
+  if (!l10n.isArabic) {
+    return normalized;
+  }
+
+  switch (normalized.toLowerCase()) {
+    case 'browse collection':
+      return l10n.t('home_hero_cta_browse_collection');
+    case 'change branch':
+      return l10n.t('home_hero_cta_change_branch');
+    case 'storefront feature':
+      return l10n.t('home_hero_eyebrow_storefront_feature');
+    case 'signature collection':
+      return l10n.t('home_hero_eyebrow_signature_collection');
+    case 'storefront':
+      return l10n.t('home_hero_metric_storefront');
+    case 'majlis ready':
+      return l10n.t('home_hero_metric_majlis_ready');
+  }
+
+  return normalized;
 }

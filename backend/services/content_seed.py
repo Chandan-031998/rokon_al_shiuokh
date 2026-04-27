@@ -14,8 +14,10 @@ _CMS_PAGE_SEED: list[dict] = [
     {
         "slug": "privacy-policy",
         "title": "Privacy Policy",
+        "title_ar": "سياسة الخصوصية",
         "section": "policy",
         "excerpt": "How customer data, orders, and account information are handled.",
+        "excerpt_ar": "كيفية التعامل مع بيانات العملاء والطلبات ومعلومات الحساب.",
         "body": (
             "We collect only the information needed to fulfill orders, support "
             "customer accounts, and improve service quality. Contact details, "
@@ -23,14 +25,22 @@ _CMS_PAGE_SEED: list[dict] = [
             "used only for order processing, support, and operational reporting. "
             "We do not sell customer data to third parties."
         ),
+        "body_ar": (
+            "نجمع فقط المعلومات اللازمة لتنفيذ الطلبات ودعم حسابات العملاء "
+            "وتحسين جودة الخدمة. يتم حفظ بيانات التواصل وعناوين التوصيل "
+            "وسجل الطلبات بشكل آمن، وتستخدم فقط لمعالجة الطلبات والدعم "
+            "والتقارير التشغيلية. لا نبيع بيانات العملاء لأي طرف ثالث."
+        ),
         "sort_order": 1,
         "is_active": True,
     },
     {
         "slug": "return-refund-policy",
         "title": "Return / Refund Policy",
+        "title_ar": "سياسة الاسترجاع والاسترداد",
         "section": "policy",
         "excerpt": "Guidance for product issues, returns, and approved refunds.",
+        "excerpt_ar": "إرشادات لمشكلات المنتجات والإرجاع والمبالغ المستردة المعتمدة.",
         "body": (
             "Customers should report damaged, incorrect, or missing items as "
             "soon as possible after delivery or pickup. Refunds and replacements "
@@ -38,19 +48,34 @@ _CMS_PAGE_SEED: list[dict] = [
             "fulfillment records. Perishable products may require same-day "
             "reporting for approval."
         ),
+        "body_ar": (
+            "يجب على العملاء الإبلاغ عن المنتجات التالفة أو غير الصحيحة أو "
+            "الناقصة في أقرب وقت ممكن بعد التوصيل أو الاستلام. تتم مراجعة "
+            "طلبات الاسترداد والاستبدال بناء على حالة المنتج وحالة الطلب "
+            "وسجلات تنفيذ الفرع. قد تتطلب المنتجات القابلة للتلف الإبلاغ "
+            "في نفس اليوم لاعتماد الطلب."
+        ),
         "sort_order": 2,
         "is_active": True,
     },
     {
         "slug": "delivery-policy",
         "title": "Delivery Policy",
+        "title_ar": "سياسة التوصيل",
         "section": "policy",
         "excerpt": "Branch coverage, delivery timing, and pickup guidance.",
+        "excerpt_ar": "نطاق تغطية الفروع ومواعيد التوصيل وإرشادات الاستلام.",
         "body": (
             "Delivery availability depends on the selected branch, live order "
             "volume, and coverage area. Customers can review branch-specific "
             "delivery and pickup availability during checkout. Estimated timing "
             "may vary during peak periods, holidays, or weather disruptions."
+        ),
+        "body_ar": (
+            "يعتمد توفر التوصيل على الفرع المحدد وحجم الطلبات الحالي ومنطقة "
+            "التغطية. يمكن للعملاء مراجعة توفر التوصيل والاستلام الخاص بكل "
+            "فرع أثناء إتمام الطلب. قد تختلف المدة المتوقعة خلال أوقات الذروة "
+            "أو العطلات أو اضطرابات الطقس."
         ),
         "sort_order": 3,
         "is_active": True,
@@ -58,8 +83,10 @@ _CMS_PAGE_SEED: list[dict] = [
     {
         "slug": "terms-and-conditions",
         "title": "Terms & Conditions",
+        "title_ar": "الشروط والأحكام",
         "section": "policy",
         "excerpt": "Terms for catalog browsing, ordering, payment, and fulfillment.",
+        "excerpt_ar": "شروط تصفح المنتجات والطلب والدفع والتنفيذ.",
         "body": (
             "By using the storefront, customers agree to the current product "
             "pricing, stock availability, fulfillment rules, and payment "
@@ -67,19 +94,33 @@ _CMS_PAGE_SEED: list[dict] = [
             "cancelled when stock, branch readiness, or delivery coverage "
             "changes after placement."
         ),
+        "body_ar": (
+            "باستخدام واجهة المتجر، يوافق العملاء على أسعار المنتجات الحالية "
+            "وتوفر المخزون وقواعد التنفيذ وشروط الدفع المنشورة من قبل النشاط. "
+            "قد يتم تحديث الطلبات أو إلغاؤها عند تغير المخزون أو جاهزية الفرع "
+            "أو نطاق التوصيل بعد تقديم الطلب."
+        ),
         "sort_order": 4,
         "is_active": True,
     },
     {
         "slug": "about-us",
         "title": "About Us",
+        "title_ar": "من نحن",
         "section": "about_us",
         "excerpt": "The story and identity behind Rokon Al Shioukh.",
+        "excerpt_ar": "القصة والهوية خلف ركن الشيوخ.",
         "body": (
             "Rokon Al Shioukh presents a curated Arabic collection built around "
             "premium coffee, spices, incense, oils, dates, nuts, and heritage-led "
             "giftable products. The brand blends traditional product categories "
             "with modern ordering, branch service, and operational control."
+        ),
+        "body_ar": (
+            "يقدم ركن الشيوخ مجموعة عربية منتقاة بعناية تشمل القهوة الفاخرة "
+            "والبهارات والبخور والزيوت والتمور والمكسرات ومنتجات الهدايا "
+            "المستوحاة من التراث. تمزج العلامة بين أصالة المنتجات التقليدية "
+            "وتجربة الطلب الحديثة وخدمة الفروع والتحكم التشغيلي."
         ),
         "sort_order": 1,
         "is_active": True,
@@ -87,13 +128,20 @@ _CMS_PAGE_SEED: list[dict] = [
     {
         "slug": "contact-us",
         "title": "Contact Us",
+        "title_ar": "اتصل بنا",
         "section": "contact_us",
         "excerpt": "Ways customers can reach support, branches, and order assistance.",
+        "excerpt_ar": "طرق تواصل العملاء مع الدعم والفروع ومساعدة الطلبات.",
         "body": (
             "Customers can reach the team through the published phone number, "
             "WhatsApp contact, branch support details, and social channels. "
             "Use the support center for order questions, delivery clarification, "
             "and branch pickup coordination."
+        ),
+        "body_ar": (
+            "يمكن للعملاء التواصل مع الفريق عبر رقم الهاتف المنشور وواتساب "
+            "وتفاصيل دعم الفروع والقنوات الاجتماعية. استخدم مركز الدعم "
+            "للاستفسار عن الطلبات وتوضيح التوصيل وتنسيق الاستلام من الفرع."
         ),
         "sort_order": 1,
         "is_active": True,
@@ -182,19 +230,30 @@ _CMS_PAGE_SEED: list[dict] = [
 _FAQ_SEED: list[dict] = [
     {
         "question": "How long does delivery take?",
+        "question_ar": "كم يستغرق التوصيل؟",
         "answer": (
             "Delivery timing depends on the selected branch, your delivery area, "
             "and current order volume. The checkout flow and support center show "
             "the latest branch-backed service information."
+        ),
+        "answer_ar": (
+            "يعتمد وقت التوصيل على الفرع المحدد ومنطقة التوصيل وحجم الطلبات "
+            "الحالي. تعرض صفحة إتمام الطلب ومركز الدعم أحدث معلومات الخدمة "
+            "المرتبطة بالفروع."
         ),
         "sort_order": 1,
         "is_active": True,
     },
     {
         "question": "Can I collect my order from a branch?",
+        "question_ar": "هل يمكنني استلام طلبي من الفرع؟",
         "answer": (
             "Yes. Pickup availability is managed per branch. If pickup is enabled "
             "for the selected branch, customers can choose it during checkout."
+        ),
+        "answer_ar": (
+            "نعم. يتم التحكم في توفر الاستلام حسب كل فرع. إذا كان الاستلام "
+            "مفعلا للفرع المحدد، يمكن للعملاء اختياره أثناء إتمام الطلب."
         ),
         "sort_order": 2,
         "is_active": True,
@@ -318,11 +377,18 @@ def _ensure_content_schema():
         """,
         """
         alter table if exists cms_pages
+          add column if not exists title_en varchar(180),
+          add column if not exists title_ar varchar(180),
           add column if not exists excerpt varchar(280),
+          add column if not exists excerpt_en varchar(280),
+          add column if not exists excerpt_ar varchar(280),
           add column if not exists body text,
+          add column if not exists body_en text,
+          add column if not exists body_ar text,
           add column if not exists image_url text,
           add column if not exists cta_label varchar(80),
           add column if not exists cta_url text,
+          add column if not exists region_code varchar(2),
           add column if not exists metadata_json jsonb not null default '{}'::jsonb,
           add column if not exists sort_order integer not null default 0,
           add column if not exists is_active boolean not null default true,
@@ -342,6 +408,8 @@ def _ensure_content_schema():
         """,
         """
         alter table if exists faqs
+          add column if not exists question_ar varchar(240),
+          add column if not exists answer_ar text,
           add column if not exists sort_order integer not null default 0,
           add column if not exists is_active boolean not null default true,
           add column if not exists created_at timestamptz not null default now(),
@@ -405,6 +473,28 @@ def _seed_cms_pages() -> bool:
             {"slug": page["slug"]},
         ).scalar()
         if exists:
+            db.session.execute(
+                text(
+                    """
+                    update cms_pages
+                    set title_en = coalesce(nullif(title_en, ''), title),
+                        title_ar = coalesce(nullif(title_ar, ''), :title_ar),
+                        excerpt_en = coalesce(nullif(excerpt_en, ''), excerpt),
+                        excerpt_ar = coalesce(nullif(excerpt_ar, ''), :excerpt_ar),
+                        body_en = coalesce(nullif(body_en, ''), body),
+                        body_ar = coalesce(nullif(body_ar, ''), :body_ar),
+                        updated_at = now()
+                    where slug = :slug
+                    """
+                ),
+                {
+                    "slug": page["slug"],
+                    "title_ar": page.get("title_ar"),
+                    "excerpt_ar": page.get("excerpt_ar"),
+                    "body_ar": page.get("body_ar"),
+                },
+            )
+            changed = True
             continue
 
         db.session.execute(
@@ -413,12 +503,19 @@ def _seed_cms_pages() -> bool:
                 insert into cms_pages (
                     slug,
                     title,
+                    title_en,
+                    title_ar,
                     section,
                     excerpt,
+                    excerpt_en,
+                    excerpt_ar,
                     body,
+                    body_en,
+                    body_ar,
                     image_url,
                     cta_label,
                     cta_url,
+                    region_code,
                     sort_order,
                     is_active,
                     metadata_json
@@ -426,12 +523,19 @@ def _seed_cms_pages() -> bool:
                 values (
                     :slug,
                     :title,
+                    :title_en,
+                    :title_ar,
                     :section,
                     :excerpt,
+                    :excerpt_en,
+                    :excerpt_ar,
                     :body,
+                    :body_en,
+                    :body_ar,
                     :image_url,
                     :cta_label,
                     :cta_url,
+                    :region_code,
                     :sort_order,
                     :is_active,
                     cast(:metadata_json as jsonb)
@@ -440,9 +544,16 @@ def _seed_cms_pages() -> bool:
             ),
             {
                 **page,
+                "title_en": page.get("title_en") or page["title"],
+                "title_ar": page.get("title_ar"),
+                "excerpt_en": page.get("excerpt_en") or page.get("excerpt"),
+                "excerpt_ar": page.get("excerpt_ar"),
+                "body_en": page.get("body_en") or page.get("body"),
+                "body_ar": page.get("body_ar"),
                 "image_url": page.get("image_url"),
                 "cta_label": page.get("cta_label"),
                 "cta_url": page.get("cta_url"),
+                "region_code": page.get("region_code"),
                 "metadata_json": json.dumps(page.get("metadata_json") or {}),
             },
         )
@@ -458,13 +569,44 @@ def _seed_faqs() -> bool:
             {"question": faq["question"]},
         ).scalar()
         if exists:
+            db.session.execute(
+                text(
+                    """
+                    update faqs
+                    set question_ar = coalesce(nullif(question_ar, ''), :question_ar),
+                        answer_ar = coalesce(nullif(answer_ar, ''), :answer_ar),
+                        updated_at = now()
+                    where question = :question
+                    """
+                ),
+                {
+                    "question": faq["question"],
+                    "question_ar": faq.get("question_ar"),
+                    "answer_ar": faq.get("answer_ar"),
+                },
+            )
+            changed = True
             continue
 
         db.session.execute(
             text(
                 """
-                insert into faqs (question, answer, sort_order, is_active)
-                values (:question, :answer, :sort_order, :is_active)
+                insert into faqs (
+                    question,
+                    question_ar,
+                    answer,
+                    answer_ar,
+                    sort_order,
+                    is_active
+                )
+                values (
+                    :question,
+                    :question_ar,
+                    :answer,
+                    :answer_ar,
+                    :sort_order,
+                    :is_active
+                )
                 """
             ),
             faq,
@@ -484,7 +626,26 @@ def _seed_support_settings() -> bool:
                 update support_settings
                 set payment_cod_label = coalesce(nullif(payment_cod_label, ''), :payment_cod_label),
                     payment_card_label = coalesce(nullif(payment_card_label, ''), :payment_card_label),
-                    payment_bank_transfer_label = coalesce(nullif(payment_bank_transfer_label, ''), :payment_bank_transfer_label)
+                    payment_bank_transfer_label = coalesce(nullif(payment_bank_transfer_label, ''), :payment_bank_transfer_label),
+                    contact_address_ar = case
+                        when nullif(contact_address_ar, '') is null
+                          or contact_address_ar = contact_address
+                        then :contact_address_ar
+                        else contact_address_ar
+                    end,
+                    support_hours_ar = case
+                        when nullif(support_hours_ar, '') is null
+                          or support_hours_ar = support_hours
+                        then :support_hours_ar
+                        else support_hours_ar
+                    end,
+                    whatsapp_label_ar = case
+                        when nullif(whatsapp_label_ar, '') is null
+                          or whatsapp_label_ar = whatsapp_label
+                        then :whatsapp_label_ar
+                        else whatsapp_label_ar
+                    end,
+                    updated_at = now()
                 where id = 1
                 """
             ),
@@ -492,9 +653,12 @@ def _seed_support_settings() -> bool:
                 "payment_cod_label": _SUPPORT_SETTINGS_SEED["payment_cod_label"],
                 "payment_card_label": _SUPPORT_SETTINGS_SEED["payment_card_label"],
                 "payment_bank_transfer_label": _SUPPORT_SETTINGS_SEED["payment_bank_transfer_label"],
+                "contact_address_ar": _SUPPORT_SETTINGS_SEED["contact_address_ar"],
+                "support_hours_ar": _SUPPORT_SETTINGS_SEED["support_hours_ar"],
+                "whatsapp_label_ar": _SUPPORT_SETTINGS_SEED["whatsapp_label_ar"],
             },
         )
-        return False
+        return True
 
     db.session.execute(
         text(
